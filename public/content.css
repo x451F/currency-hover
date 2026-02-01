@@ -1,0 +1,239 @@
+#ccx-tooltip-root {
+  all: initial;
+  position: fixed;
+  z-index: 2147483647;
+  display: none;
+  pointer-events: auto;
+  font-family: "Futura", "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+  color: var(--ccx-text);
+  --ccx-bg: #fff7ee;
+  --ccx-bg-secondary: #f0f4f0;
+  --ccx-text: #1d1a16;
+  --ccx-muted: #6f665c;
+  --ccx-border: rgba(29, 26, 22, 0.15);
+  --ccx-code: #215c49;
+  --ccx-error: #8d2d2d;
+  --ccx-shadow: rgba(27, 24, 20, 0.18);
+}
+
+#ccx-tooltip-root[data-theme='dark'] {
+  --ccx-bg: #1c1a17;
+  --ccx-bg-secondary: #23201c;
+  --ccx-text: #f5f1ec;
+  --ccx-muted: #b0a69c;
+  --ccx-border: rgba(245, 241, 236, 0.2);
+  --ccx-code: #78e6cc;
+  --ccx-error: #ff9a9a;
+  --ccx-shadow: rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  #ccx-tooltip-root:not([data-theme]) {
+    --ccx-bg: #1c1a17;
+    --ccx-bg-secondary: #23201c;
+    --ccx-text: #f5f1ec;
+    --ccx-muted: #b0a69c;
+    --ccx-border: rgba(245, 241, 236, 0.2);
+    --ccx-code: #78e6cc;
+    --ccx-error: #ff9a9a;
+    --ccx-shadow: rgba(0, 0, 0, 0.45);
+  }
+}
+
+#ccx-tooltip-root * {
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+#ccx-tooltip-root.ccx-visible {
+  display: block;
+}
+
+#ccx-tooltip-root .ccx-card {
+  background: linear-gradient(135deg, var(--ccx-bg), var(--ccx-bg-secondary));
+  border: 1px solid var(--ccx-border);
+  border-radius: 12px;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 10px 12px;
+  box-shadow: 0 12px 30px var(--ccx-shadow);
+}
+
+#ccx-tooltip-root .ccx-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+#ccx-tooltip-root .ccx-amount-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  position: relative;
+}
+
+#ccx-tooltip-root .ccx-amount {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+#ccx-tooltip-root .ccx-base-value .ccx-amount-text {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+#ccx-tooltip-root .ccx-subtitle {
+  font-size: 11px;
+  color: var(--ccx-muted);
+}
+
+#ccx-tooltip-root .ccx-list {
+  display: grid;
+  gap: 6px;
+}
+
+#ccx-tooltip-root .ccx-row {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  position: relative;
+}
+
+#ccx-tooltip-root .ccx-code {
+  font-weight: 700;
+  color: var(--ccx-code);
+}
+
+#ccx-tooltip-root .ccx-converted {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+#ccx-tooltip-root .ccx-missing {
+  color: var(--ccx-muted);
+}
+
+#ccx-tooltip-root .ccx-symbol {
+  font-size: 13px;
+}
+
+#ccx-tooltip-root .ccx-amount-text {
+  font-size: 13px;
+}
+
+#ccx-tooltip-root .ccx-code-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: var(--ccx-text);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 8px;
+}
+
+#ccx-tooltip-root .ccx-code-wrap {
+  position: relative;
+}
+
+#ccx-tooltip-root .ccx-base-btn {
+  font-size: 12px;
+}
+
+#ccx-tooltip-root .ccx-code-btn:hover {
+  background: rgba(61, 208, 177, 0.12);
+}
+
+#ccx-tooltip-root .ccx-caret {
+  font-size: 10px;
+  color: var(--ccx-muted);
+}
+
+#ccx-tooltip-root .ccx-flag {
+  font-size: 12px;
+}
+
+#ccx-tooltip-root .ccx-error {
+  font-size: 12px;
+  color: var(--ccx-error);
+  padding: 6px 0 2px 0;
+}
+
+#ccx-tooltip-root .ccx-loading {
+  font-size: 12px;
+  color: var(--ccx-muted);
+}
+
+
+#ccx-tooltip-root .ccx-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 180px;
+  background: var(--ccx-bg-secondary);
+  border: 1px solid var(--ccx-border);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 12px 24px var(--ccx-shadow);
+  z-index: 1;
+}
+
+#ccx-tooltip-root .ccx-search {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--ccx-border);
+  padding: 6px 8px;
+  font-size: 11px;
+  background: var(--ccx-bg);
+  color: var(--ccx-text);
+  margin-bottom: 6px;
+}
+
+#ccx-tooltip-root .ccx-options {
+  max-height: 160px;
+  overflow: auto;
+  display: grid;
+  gap: 4px;
+}
+
+#ccx-tooltip-root .ccx-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ccx-text);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+
+#ccx-tooltip-root .ccx-option:hover {
+  background: rgba(61, 208, 177, 0.12);
+}
+
+#ccx-tooltip-root .ccx-option-current {
+  border-color: var(--ccx-border);
+  background: rgba(61, 208, 177, 0.18);
+}
+
+#ccx-tooltip-root.ccx-compact .ccx-card {
+  padding: 8px 10px;
+}
+
+#ccx-tooltip-root.ccx-compact .ccx-amount {
+  font-size: 13px;
+}

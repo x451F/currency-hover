@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Currency Hover</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <div class="title">Currency Hover</div>
+        <div class="subtitle">Highlight any number to convert.</div>
+      </header>
+
+      <label class="toggle">
+        <input type="checkbox" id="enabled" />
+        <span>Enabled</span>
+      </label>
+
+      <div class="field">
+        <label for="base">Base currency</label>
+        <select id="base"></select>
+      </div>
+
+      <div class="field">
+        <label>Favorites</label>
+        <div id="favorites" class="chips" aria-label="Favorite target currencies"></div>
+      </div>
+
+      <div class="field">
+        <label for="add-target">Add target (ISO code)</label>
+        <div class="inline">
+          <input id="add-target" type="text" maxlength="3" placeholder="UAH" />
+          <button id="add-target-btn" class="ghost small" type="button">Add</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="targets">All target currencies</label>
+        <select id="targets" multiple size="6"></select>
+      </div>
+
+      <div class="field">
+        <label for="theme">Theme</label>
+        <select id="theme">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </div>
+
+      <div class="actions">
+        <button id="refresh">Refresh rates</button>
+        <button id="open-options" class="ghost">Options</button>
+      </div>
+
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+    </div>
+
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>

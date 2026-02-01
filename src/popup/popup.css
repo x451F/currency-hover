@@ -1,0 +1,207 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f7f2ea;
+  --bg-top: #fff9f0;
+  --panel: #fff9f2;
+  --text: #1d1a16;
+  --muted: #6f665c;
+  --accent: #1f6a5c;
+  --accent-strong: #184c43;
+  --border: rgba(29, 26, 22, 0.15);
+  --chip-bg: #f3ece1;
+  --chip-text: #1d1a16;
+  --input-bg: #fff;
+}
+
+:root[data-theme='dark'] {
+  --bg: #12110f;
+  --bg-top: #1f1c19;
+  --panel: #1a1815;
+  --text: #f5f1ec;
+  --muted: #b0a69c;
+  --accent: #3dd0b1;
+  --accent-strong: #78e6cc;
+  --border: rgba(245, 241, 236, 0.18);
+  --chip-bg: #23201c;
+  --chip-text: #f5f1ec;
+  --input-bg: #1f1c19;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #12110f;
+    --bg-top: #1f1c19;
+    --panel: #1a1815;
+    --text: #f5f1ec;
+    --muted: #b0a69c;
+    --accent: #3dd0b1;
+    --accent-strong: #78e6cc;
+    --border: rgba(245, 241, 236, 0.18);
+    --chip-bg: #23201c;
+    --chip-text: #f5f1ec;
+    --input-bg: #1f1c19;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Futura", "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+  background: radial-gradient(circle at top, var(--bg-top) 0%, var(--bg) 55%);
+  color: var(--text);
+}
+
+.app {
+  width: 280px;
+  padding: 14px 16px 16px;
+  display: grid;
+  gap: 12px;
+  animation: fadeUp 220ms ease-out;
+}
+
+header {
+  display: grid;
+  gap: 4px;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+select {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  font-size: 12px;
+  color: inherit;
+}
+
+select[multiple] {
+  height: 120px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  flex: 1;
+  border-radius: 999px;
+  border: none;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(31, 106, 92, 0.25);
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--accent-strong);
+  border: 1px solid var(--border);
+}
+
+button.small {
+  padding: 6px 10px;
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+
+input[type='text'] {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  font-size: 12px;
+  color: inherit;
+}
+
+.inline {
+  display: flex;
+  gap: 6px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(31, 106, 92, 0.2);
+}
+
+.chip-active {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.chip-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.status {
+  font-size: 11px;
+  color: var(--muted);
+  min-height: 16px;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
