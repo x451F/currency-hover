@@ -5,10 +5,11 @@ A Manifest V3 Chrome extension that converts selected numbers into multiple curr
 ## Features
 - Highlight a number on any webpage to see conversions near your selection.
 - Popup controls for enable/disable, base currency, target currencies, and rate refresh.
-- Full options page for cache TTL, tooltip behavior, and optional currency detection.
+- Inline tooltip editing, per-row copy buttons, and currency dropdowns.
+- Favorites and theme setting (system/light/dark).
+- Pro unlock (manual for now): advanced formatting slider, history, favorites groups, and crypto support.
 - Frankfurter API (no API key) with cache + TTL and graceful error handling.
   - Currency detection recognizes dollar/euro/pound/yen symbols and ISO codes in the selection text.
-- Favorites for quick target toggling and a theme setting (system/light/dark).
 
 ## Setup
 ```bash
@@ -44,6 +45,7 @@ src/
 ### Storage
 - `chrome.storage.sync` stores user settings.
 - `chrome.storage.local` caches FX rates per base currency with TTL.
+- `chrome.storage.local` stores conversion history + crypto cache (Pro features).
 
 ## Debugging Tips
 - Inspect the service worker via **chrome://extensions -> Service Worker**.
@@ -52,8 +54,8 @@ src/
 
 ## Notes on MV3
 - Service worker is an ES module (`background.js`).
-- Content script is also an ES module (`content.js`) via the manifest `type` field.
-- Rates are fetched only from `https://api.frankfurter.dev/*` (host permission).
+- Content script is built as a classic bundle (`content.js`) for MV3 compatibility.
+- Rates are fetched from Frankfurter/Open ER, with optional crypto pricing from CoinGecko.
 
 ## Icons
 Placeholder PNG icons are provided in `public/icons/` (replace with real artwork):

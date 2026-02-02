@@ -4,7 +4,11 @@
   "version": "1.0.0",
   "description": "Convert highlighted numbers into multiple currencies.",
   "permissions": ["storage"],
-  "host_permissions": ["https://api.frankfurter.dev/*", "https://open.er-api.com/*"],
+  "host_permissions": [
+    "https://api.frankfurter.dev/*",
+    "https://open.er-api.com/*",
+    "https://api.coingecko.com/*"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"

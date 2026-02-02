@@ -50,6 +50,7 @@ export class TooltipController {
   private openBase = false;
   private isEditingBase = false;
   private baseEditValue = '';
+  private pointerDownInside = false;
   private lastState: TooltipState | null = null;
   private lastRect: DOMRect | null = null;
 
@@ -60,6 +61,13 @@ export class TooltipController {
     this.card.className = 'ccx-card';
     this.root.appendChild(this.card);
     document.documentElement.appendChild(this.root);
+
+    this.root.addEventListener('pointerdown', () => {
+      this.pointerDownInside = true;
+      window.setTimeout(() => {
+        this.pointerDownInside = false;
+      }, 0);
+    });
 
     this.root.addEventListener('mouseenter', () => {
       this.isHovered = true;
@@ -156,16 +164,15 @@ export class TooltipController {
       input.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
           controls.onBaseAmountCommit(input.value);
-          this.exitBaseEdit();
+          this.exitBaseEdit(true);
         }
         if (event.key === 'Escape') {
           controls.onBaseAmountCancel();
-          this.exitBaseEdit();
+          this.exitBaseEdit(true);
         }
       });
-      input.addEventListener('blur', () => {
-        controls.onBaseAmountCommit(input.value);
-        this.exitBaseEdit();
+      input.addEventListener('blur', (event) => {
+        this.handleBaseInputBlur(event, input, controls);
       });
 
       amountContainer.appendChild(input);
@@ -203,6 +210,9 @@ export class TooltipController {
     caret.textContent = '▾';
 
     baseButton.append(code, caret);
+    baseButton.addEventListener('mousedown', (event) => {
+      event.stopPropagation();
+    });
     baseButton.addEventListener('click', () => {
       this.toggleBaseDropdown();
     });
@@ -294,6 +304,9 @@ export class TooltipController {
       caret.textContent = '▾';
 
       codeButton.append(code, caret);
+      codeButton.addEventListener('mousedown', (event) => {
+        event.stopPropagation();
+      });
       codeButton.addEventListener('click', () => {
         this.toggleDropdown(index);
       });
@@ -395,10 +408,33 @@ export class TooltipController {
     this.rerender();
   }
 
-  private exitBaseEdit(): void {
+  private exitBaseEdit(shouldRerender: boolean): void {
     this.isEditingBase = false;
     this.baseEditValue = '';
-    this.rerender();
+    if (shouldRerender) {
+      this.rerender();
+    }
+  }
+
+  private handleBaseInputBlur(
+    event: FocusEvent,
+    input: HTMLInputElement,
+    controls: TooltipControls
+  ): void {
+    if (!this.isEditingBase) return;
+    if (this.pointerDownInside) return;
+    const related = event.relatedTarget;
+    if (related && related instanceof Node && this.root.contains(related)) {
+      return;
+    }
+    window.setTimeout(() => {
+      const active = document.activeElement;
+      if (active && this.root.contains(active)) {
+        return;
+      }
+      controls.onBaseAmountCommit(input.value);
+      this.exitBaseEdit(this.root.classList.contains('ccx-visible'));
+    }, 0);
   }
 
   private buildCopyButton(text: string, highlightEl: HTMLElement): HTMLButtonElement {
@@ -416,6 +452,9 @@ export class TooltipController {
       if (!text) return;
       await this.copyText(text);
       this.showCopied(button, highlightEl);
+    });
+    button.addEventListener('mousedown', (event) => {
+      event.stopPropagation();
     });
 
     return button;
@@ -491,6 +530,9 @@ export class TooltipController {
         label.textContent = code;
 
         button.append(flag, label);
+        button.addEventListener('mousedown', (event) => {
+          event.stopPropagation();
+        });
         button.addEventListener('click', () => {
           onSelect(code);
         });

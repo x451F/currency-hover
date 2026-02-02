@@ -1,5 +1,8 @@
 export const SETTINGS_KEY = 'settings';
 export const RATES_CACHE_KEY = 'ratesCache';
+export const CRYPTO_CACHE_KEY = 'cryptoCache';
+export const HISTORY_KEY = 'history';
+export const HISTORY_SETTINGS_KEY = 'historySettings';
 
 export const SUPPORTED_CURRENCIES = [
   'USD',
@@ -24,5 +27,9 @@ export const SUPPORTED_CURRENCIES = [
   'KRW',
   'SGD',
   'HKD',
-  'ZAR'
+  'ZAR',
+  'BTC',
+  'ETH',
+  'USDT',
+  'SOL'
 ] as const;

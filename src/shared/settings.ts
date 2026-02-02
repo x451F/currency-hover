@@ -20,16 +20,43 @@ export interface FormatSettings {
   copyMode: 'formatted' | 'raw';
 }
 
+export interface CopySettings {
+  decimals: number;
+  includeCode: boolean;
+  includeSymbol: boolean;
+  mode: 'default' | 'raw' | 'formatted';
+}
+
+export interface Entitlements {
+  pro: boolean;
+  source: 'none' | 'manual';
+  updatedAt: number;
+}
+
+export interface FavoritesGroup {
+  id: string;
+  name: string;
+  favorites: CurrencyCode[];
+}
+
+export interface FavoritesGroups {
+  activeId: string;
+  groups: FavoritesGroup[];
+}
+
 export interface Settings {
   enabled: boolean;
   baseCurrency: CurrencyCode;
   targets: CurrencyCode[];
   favorites: CurrencyCode[];
+  favoritesGroups: FavoritesGroups;
   cacheTtlMinutes: number;
   tooltip: TooltipSettings;
   format: FormatSettings;
+  copy: CopySettings;
   detectCurrency: boolean;
   theme: ThemeSetting;
+  entitlements: Entitlements;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -37,6 +64,16 @@ export const DEFAULT_SETTINGS: Settings = {
   baseCurrency: 'USD',
   targets: ['EUR', 'USD', 'UAH', 'PLN'],
   favorites: ['EUR', 'USD', 'UAH', 'PLN'],
+  favoritesGroups: {
+    activeId: 'default',
+    groups: [
+      {
+        id: 'default',
+        name: 'Default',
+        favorites: ['EUR', 'USD', 'UAH', 'PLN']
+      }
+    ]
+  },
   cacheTtlMinutes: 60,
   tooltip: {
     autoHideSeconds: 6,
@@ -53,8 +90,19 @@ export const DEFAULT_SETTINGS: Settings = {
     compact: false,
     copyMode: 'formatted'
   },
+  copy: {
+    decimals: 2,
+    includeCode: false,
+    includeSymbol: false,
+    mode: 'default'
+  },
   detectCurrency: false,
-  theme: 'system'
+  theme: 'system',
+  entitlements: {
+    pro: false,
+    source: 'none',
+    updatedAt: 0
+  }
 };
 
 export const CURRENCY_HINTS = SUPPORTED_CURRENCIES as readonly CurrencyCode[];
@@ -90,22 +138,44 @@ export function mergeSettings(partial: Partial<Settings> | undefined | null): Se
   if (typeof legacyCompact === 'boolean' && partial.format?.compact === undefined) {
     format.compact = legacyCompact;
   }
+  const legacyCopyMode = partial.format?.copyMode;
+  const copy: CopySettings = {
+    ...DEFAULT_SETTINGS.copy,
+    ...(partial.copy ?? {})
+  };
+  if (legacyCopyMode && partial.copy?.mode === undefined) {
+    copy.mode = legacyCopyMode === 'raw' ? 'raw' : 'formatted';
+  }
+  const entitlements: Entitlements = {
+    ...DEFAULT_SETTINGS.entitlements,
+    ...(partial.entitlements ?? {})
+  };
+  const favoritesGroups = buildFavoritesGroups(partial);
+  const normalizedTargets = partial.targets
+    ? normalizeCurrencyList(partial.targets)
+    : DEFAULT_SETTINGS.targets;
+  const normalizedFavorites = partial.favorites
+    ? normalizeCurrencyList(partial.favorites)
+    : partial.targets
+      ? normalizeCurrencyList(partial.targets)
+      : DEFAULT_SETTINGS.favorites;
   return {
     ...DEFAULT_SETTINGS,
     ...partial,
     baseCurrency: partial.baseCurrency
       ? normalizeCurrencyCode(partial.baseCurrency)
       : DEFAULT_SETTINGS.baseCurrency,
-    targets: partial.targets ? normalizeCurrencyList(partial.targets) : DEFAULT_SETTINGS.targets,
-    favorites: partial.favorites
-      ? normalizeCurrencyList(partial.favorites)
-      : DEFAULT_SETTINGS.favorites,
+    targets: normalizedTargets,
+    favorites: normalizedFavorites,
+    favoritesGroups,
     tooltip: {
       ...DEFAULT_SETTINGS.tooltip,
       ...partial.tooltip
     },
     format,
-    theme: normalizeTheme(partial.theme)
+    copy,
+    theme: normalizeTheme(partial.theme),
+    entitlements
   };
 }
 
@@ -113,6 +183,7 @@ export function sanitizeSettings(settings: Settings): Settings {
   const base = normalizeCurrencyCode(settings.baseCurrency);
   const targets = normalizeCurrencyList(settings.targets);
   const favorites = normalizeCurrencyList(settings.favorites);
+  const favoritesGroups = sanitizeFavoritesGroups(settings.favoritesGroups, favorites);
   const ttl = Number.isFinite(settings.cacheTtlMinutes)
     ? Math.max(1, Math.round(settings.cacheTtlMinutes))
     : DEFAULT_SETTINGS.cacheTtlMinutes;
@@ -150,12 +221,33 @@ export function sanitizeSettings(settings: Settings): Settings {
     compact,
     copyMode
   };
+  const rawCopy = settings.copy ?? DEFAULT_SETTINGS.copy;
+  const copy: CopySettings = {
+    decimals: clampDecimals(rawCopy.decimals, 0, 8, DEFAULT_SETTINGS.copy.decimals),
+    includeCode: Boolean(rawCopy.includeCode),
+    includeSymbol: Boolean(rawCopy.includeSymbol),
+    mode: rawCopy.mode === 'raw' || rawCopy.mode === 'formatted' ? rawCopy.mode : 'default'
+  };
+  const entitlements: Entitlements = {
+    pro: Boolean(settings.entitlements?.pro),
+    source: settings.entitlements?.source === 'manual' ? 'manual' : 'none',
+    updatedAt: Number.isFinite(settings.entitlements?.updatedAt)
+      ? Math.max(0, Math.round(settings.entitlements.updatedAt))
+      : 0
+  };
+  let activeFavorites = getActiveFavorites(favoritesGroups, favorites);
+  let syncedGroups = favoritesGroups;
+  if (favorites.length && !arraysEqual(activeFavorites, favorites)) {
+    syncedGroups = syncActiveGroupFavorites(favoritesGroups, favorites);
+    activeFavorites = getActiveFavorites(syncedGroups, favorites);
+  }
 
   return {
     ...settings,
     baseCurrency: base,
-    targets: targets.length ? targets : DEFAULT_SETTINGS.targets,
-    favorites: favorites.length ? favorites : DEFAULT_SETTINGS.favorites,
+    targets: targets.length ? targets : activeFavorites.length ? activeFavorites : DEFAULT_SETTINGS.targets,
+    favorites: activeFavorites.length ? activeFavorites : DEFAULT_SETTINGS.favorites,
+    favoritesGroups: syncedGroups,
     cacheTtlMinutes: ttl,
     tooltip: {
       ...settings.tooltip,
@@ -164,11 +256,84 @@ export function sanitizeSettings(settings: Settings): Settings {
       compact
     },
     format,
-    theme: normalizeTheme(settings.theme)
+    copy,
+    theme: normalizeTheme(settings.theme),
+    entitlements
   };
 }
 
 function clampDecimals(value: number, min: number, max: number, fallback: number): number {
   if (!Number.isFinite(value)) return fallback;
   return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+function buildFavoritesGroups(partial: Partial<Settings> | undefined | null): FavoritesGroups {
+  const existing = partial?.favoritesGroups;
+  if (existing && Array.isArray(existing.groups) && existing.groups.length > 0) {
+    return existing as FavoritesGroups;
+  }
+  const favorites = partial?.favorites?.length
+    ? normalizeCurrencyList(partial.favorites)
+    : partial?.targets?.length
+      ? normalizeCurrencyList(partial.targets)
+      : DEFAULT_SETTINGS.favorites;
+  return {
+    activeId: 'default',
+    groups: [
+      {
+        id: 'default',
+        name: 'Default',
+        favorites
+      }
+    ]
+  };
+}
+
+function sanitizeFavoritesGroups(groups: FavoritesGroups | undefined, fallbackFavorites: CurrencyCode[]): FavoritesGroups {
+  const baseGroups = groups && Array.isArray(groups.groups) && groups.groups.length > 0 ? groups : null;
+  const normalizedGroups: FavoritesGroup[] = baseGroups
+    ? baseGroups.groups.map((group) => ({
+        id: group.id || `group-${Math.random().toString(36).slice(2, 8)}`,
+        name: group.name || 'Group',
+        favorites: normalizeCurrencyList(group.favorites ?? [])
+      }))
+    : [
+        {
+          id: 'default',
+          name: 'Default',
+          favorites: fallbackFavorites.length ? fallbackFavorites : DEFAULT_SETTINGS.favorites
+        }
+      ];
+  const activeId = baseGroups?.activeId ?? normalizedGroups[0].id;
+  const activeExists = normalizedGroups.some((group) => group.id === activeId);
+  return {
+    activeId: activeExists ? activeId : normalizedGroups[0].id,
+    groups: normalizedGroups
+  };
+}
+
+function getActiveFavorites(groups: FavoritesGroups, fallbackFavorites: CurrencyCode[]): CurrencyCode[] {
+  const active = groups.groups.find((group) => group.id === groups.activeId);
+  if (active && active.favorites.length) return active.favorites;
+  if (fallbackFavorites.length) return fallbackFavorites;
+  return DEFAULT_SETTINGS.favorites;
+}
+
+function syncActiveGroupFavorites(groups: FavoritesGroups, favorites: CurrencyCode[]): FavoritesGroups {
+  const index = groups.groups.findIndex((group) => group.id === groups.activeId);
+  const activeIndex = index >= 0 ? index : 0;
+  const nextGroups = [...groups.groups];
+  nextGroups[activeIndex] = {
+    ...nextGroups[activeIndex],
+    favorites
+  };
+  return {
+    activeId: nextGroups[activeIndex].id,
+    groups: nextGroups
+  };
+}
+
+function arraysEqual(a: CurrencyCode[], b: CurrencyCode[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
 }

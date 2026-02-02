@@ -1,12 +1,14 @@
 import { SUPPORTED_CURRENCIES } from '../shared/constants';
-import { getSettings, onSettingsChanged, setSettings } from '../shared/storage';
+import { addHistoryEntry, getHistorySettings, getSettings, onSettingsChanged, setSettings } from '../shared/storage';
 import { detectCurrencyFromText, extractFirstNumber } from '../shared/parser';
-import { formatCurrencyParts, formatMoney, formatRawNumber } from '../shared/format';
+import { formatCopyValue, formatCurrencyParts, normalizedFixed } from '../shared/format';
 import { sendMessage } from '../shared/runtime';
 import { TooltipController } from './tooltip';
 import { getSelectionInfo } from './selection';
 import type { ConvertResponse } from '../background/messaging';
-import { normalizeCurrencyList } from '../shared/settings';
+import { normalizeCurrencyList, type FavoritesGroups } from '../shared/settings';
+import { hasFeature } from '../shared/capabilities';
+import { HISTORY_SETTINGS_KEY } from '../shared/constants';
 
 async function init(): Promise<void> {
   const tooltip = new TooltipController();
@@ -22,6 +24,8 @@ async function init(): Promise<void> {
   let currentAmount = 0;
   let editStartAmount: number | null = null;
   let inputDebounce: number | null = null;
+  let historySettings = await getHistorySettings();
+  let shouldLogHistory = false;
 
   tooltip.setTheme(currentSettings.theme);
   tooltip.setOnHide(() => {
@@ -30,6 +34,7 @@ async function init(): Promise<void> {
     lastSelection = null;
     overrideBase = null;
     editStartAmount = null;
+    shouldLogHistory = false;
     if (inputDebounce) {
       window.clearTimeout(inputDebounce);
       inputDebounce = null;
@@ -60,6 +65,7 @@ async function init(): Promise<void> {
     activeFavorites = getEffectiveFavorites(currentSettings);
     activeBase = detectedBase ?? currentSettings.baseCurrency;
     activeTargets = getTargets(activeBase, activeFavorites);
+    shouldLogHistory = true;
 
     await convertAndRender();
     scheduleRefresh();
@@ -71,20 +77,25 @@ async function init(): Promise<void> {
     const targets = activeTargets.length > 0 ? [...activeTargets] : [];
     const formatSettings = currentSettings.format;
     const baseParts = formatCurrencyParts(currentAmount, base, formatSettings);
-    const baseCopyValue = formatCopyValue(currentAmount, base, formatSettings);
+    const baseCopyValue = formatCopyValue(currentAmount, base, currentSettings.copy, formatSettings);
+    const allowCrypto = hasFeature(currentSettings, 'crypto');
+    const availableCurrencies = allowCrypto
+      ? [...SUPPORTED_CURRENCIES]
+      : SUPPORTED_CURRENCIES.filter((code) => !['BTC', 'ETH', 'USDT', 'SOL'].includes(code));
     const controls = {
       baseAmount: baseParts.amount,
       baseSymbol: baseParts.symbol,
       baseCurrency: base,
-      baseInputValue: formatRawNumber(currentAmount),
+      baseInputValue: normalizedFixed(currentAmount, getEditDecimals(currentSettings)),
       baseCopyValue,
-      availableBaseCurrencies: [...SUPPORTED_CURRENCIES],
-      availableTargetCurrencies: SUPPORTED_CURRENCIES.filter((code) => code !== base),
+      availableBaseCurrencies: availableCurrencies,
+      availableTargetCurrencies: availableCurrencies.filter((code) => code !== base),
       onBaseChange: (code: string) => {
         overrideBase = code;
         activeBase = code;
         activeTargets = getTargets(activeBase, activeFavorites);
         void setSettings({ baseCurrency: code, targets: activeFavorites });
+        shouldLogHistory = true;
         void convertAndRender();
       },
       onTargetChange: (index: number, code: string) => {
@@ -95,9 +106,10 @@ async function init(): Promise<void> {
           nextTargets[index] = code;
         }
         const nextFavorites = updateFavoritesFromTargets(activeBase, activeFavorites, nextTargets);
+        const nextGroups = updateGroupsFromFavorites(currentSettings.favoritesGroups, nextFavorites);
         activeFavorites = nextFavorites;
         activeTargets = getTargets(activeBase, activeFavorites);
-        void setSettings({ favorites: nextFavorites, targets: nextFavorites });
+        void setSettings({ favorites: nextFavorites, targets: nextFavorites, favoritesGroups: nextGroups });
         void convertAndRender();
       },
       onBaseEditStart: () => {
@@ -113,6 +125,7 @@ async function init(): Promise<void> {
         const parsed = parseInput(raw);
         if (parsed !== null) {
           currentAmount = parsed;
+          shouldLogHistory = true;
           void convertAndRender();
         } else if (editStartAmount !== null) {
           currentAmount = editStartAmount;
@@ -175,6 +188,20 @@ async function init(): Promise<void> {
       return;
     }
 
+    if (shouldLogHistory && hasFeature(currentSettings, 'history') && historySettings.enabled) {
+      shouldLogHistory = false;
+      await addHistoryEntry(
+        {
+          ts: Date.now(),
+          base,
+          amount: currentAmount,
+          favoritesSnapshot: [...activeFavorites],
+          conversions: response.conversions
+        },
+        historySettings.maxItems
+      );
+    }
+
     const conversions = targets.map((code) => {
       const value = response.conversions[code];
       if (typeof value !== 'number') {
@@ -185,7 +212,7 @@ async function init(): Promise<void> {
         code,
         symbol: parts.symbol,
         amount: parts.amount,
-        copyValue: formatCopyValue(value, code, formatSettings)
+        copyValue: formatCopyValue(value, code, currentSettings.copy, formatSettings)
       };
     });
 
@@ -222,6 +249,14 @@ async function init(): Promise<void> {
     }
     if (!currentSettings.enabled) {
       tooltip.hide();
+    }
+  });
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes[HISTORY_SETTINGS_KEY]) return;
+    const next = changes[HISTORY_SETTINGS_KEY].newValue as typeof historySettings | undefined;
+    if (next) {
+      historySettings = next;
     }
   });
 
@@ -314,19 +349,37 @@ async function init(): Promise<void> {
     return parsed ? parsed.value : null;
   }
 
+  function getEditDecimals(settings: typeof currentSettings): number {
+    const value =
+      settings.format.mode === 'fixed' ? settings.format.fixedDecimals : settings.copy.decimals;
+    if (!Number.isFinite(value)) return 2;
+    return Math.min(8, Math.max(0, Math.round(value)));
+  }
+
   function getEffectiveFavorites(settings: typeof currentSettings): string[] {
-    if (Array.isArray(settings.favorites) && settings.favorites.length > 0) {
-      return normalizeCurrencyList(settings.favorites);
+    if (settings.favoritesGroups?.groups?.length) {
+      const activeGroup = settings.favoritesGroups.groups.find(
+        (group) => group.id === settings.favoritesGroups.activeId
+      );
+      if (activeGroup?.favorites?.length) {
+        const normalized = normalizeCurrencyList(activeGroup.favorites);
+        return hasFeature(settings, 'crypto')
+          ? normalized
+          : normalized.filter((code) => !['BTC', 'ETH', 'USDT', 'SOL'].includes(code));
+      }
     }
     const fallback =
       settings.favorites === undefined && Array.isArray(settings.targets) && settings.targets.length > 0
         ? normalizeCurrencyList(settings.targets)
         : ['EUR', 'USD', 'UAH', 'PLN'];
-    void setSettings({ favorites: fallback, targets: fallback });
+    const filteredFallback = hasFeature(settings, 'crypto')
+      ? fallback
+      : fallback.filter((code) => !['BTC', 'ETH', 'USDT', 'SOL'].includes(code));
+    void setSettings({ favorites: filteredFallback, targets: filteredFallback });
     if (settings.favorites === undefined && Array.isArray(settings.targets)) {
-      return fallback;
+      return filteredFallback;
     }
-    return fallback;
+    return filteredFallback;
   }
 
   function getTargets(base: string, favorites: string[]): string[] {
@@ -335,34 +388,38 @@ async function init(): Promise<void> {
   }
 
   function updateFavoritesFromTargets(base: string, favorites: string[], targets: string[]): string[] {
-    if (!favorites.includes(base)) {
-      return normalizeCurrencyList(targets);
-    }
-    const next: string[] = [];
-    let targetIndex = 0;
-    for (const code of favorites) {
-      if (code === base) {
-        next.push(code);
-        continue;
-      }
-      if (targetIndex < targets.length) {
-        next.push(targets[targetIndex]);
-        targetIndex += 1;
-      }
-    }
-    while (targetIndex < targets.length) {
-      next.push(targets[targetIndex]);
-      targetIndex += 1;
-    }
+    const baseIncluded = favorites.includes(base);
+    const next = baseIncluded ? [base, ...targets] : targets;
     return normalizeCurrencyList(next);
   }
 
-  function formatCopyValue(value: number, currency: string, formatSettings: typeof currentSettings.format): string {
-    if (!Number.isFinite(value)) return '';
-    return formatSettings.copyMode === 'raw'
-      ? formatRawNumber(value)
-      : formatMoney(value, currency, formatSettings);
+  function updateGroupsFromFavorites(groups: FavoritesGroups, favorites: string[]): FavoritesGroups {
+    const nextGroups = groups?.groups?.length ? [...groups.groups] : [];
+    if (!nextGroups.length) {
+      return {
+        activeId: 'default',
+        groups: [
+          {
+            id: 'default',
+            name: 'Default',
+            favorites
+          }
+        ]
+      };
+    }
+    const activeIndex = nextGroups.findIndex((group) => group.id === groups.activeId);
+    const index = activeIndex >= 0 ? activeIndex : 0;
+    const active = nextGroups[index];
+    nextGroups[index] = {
+      ...active,
+      favorites
+    };
+    return {
+      activeId: nextGroups[index].id,
+      groups: nextGroups
+    };
   }
+
 }
 
 init().catch((error) => {

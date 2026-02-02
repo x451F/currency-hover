@@ -73,6 +73,11 @@ body {
   color: var(--muted);
 }
 
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .icon-btn {
   border: 1px solid var(--border);
   background: transparent;
@@ -109,6 +114,20 @@ body {
   display: grid;
   gap: 10px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
+.group-switcher {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.group-switcher label {
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
 }
 
 .converter-list {
@@ -334,6 +353,109 @@ input[type='number'] {
 .helper-text {
   font-size: 11px;
   color: var(--muted);
+}
+
+.pro-card {
+  border-color: rgba(49, 208, 178, 0.35);
+  background: linear-gradient(145deg, rgba(49, 208, 178, 0.08), rgba(23, 27, 25, 0.4));
+}
+
+.pro-content {
+  display: grid;
+  gap: 8px;
+}
+
+.pro-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pro-code {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.pro-code input {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  background: var(--panel-alt);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.pro-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: start;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(49, 208, 178, 0.2);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.slider-row input[type='range'] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.toggle.inline {
+  justify-content: space-between;
+}
+
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.history-group {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.history-item {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.history-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.history-actions button {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
 }
 
 .favorites-list {

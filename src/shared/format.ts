@@ -1,5 +1,5 @@
 import { getCurrencySymbol } from './currencyMeta';
-import { DEFAULT_SETTINGS, type FormatSettings } from './settings';
+import { DEFAULT_SETTINGS, type CopySettings, type FormatSettings } from './settings';
 
 const DEFAULT_FORMAT = DEFAULT_SETTINGS.format;
 
@@ -41,9 +41,45 @@ export function formatNumber(value: number, format?: FormatSettings): string {
   }
 }
 
-export function formatRawNumber(value: number): string {
+export function normalizedFixed(value: number, decimals = 2): string {
   if (!Number.isFinite(value)) return '';
-  return String(value);
+  const fixed = value.toFixed(decimals);
+  const normalized = fixed.replace(',', '.');
+  if (Number(normalized) === 0) {
+    return normalized.replace(/^-/, '');
+  }
+  return normalized;
+}
+
+export function formatCopyValue(
+  value: number,
+  currency: string,
+  copy: CopySettings,
+  format?: FormatSettings
+): string {
+  if (!Number.isFinite(value)) return '';
+  const mode = copy.mode;
+  const decimals = clampDecimals(Number.isFinite(copy.decimals) ? copy.decimals : 2, 0, 8);
+  if (mode === 'raw') {
+    const base = normalizedFixed(value, decimals);
+    return copy.includeCode ? `${base} ${currency}` : base;
+  }
+
+  if (mode === 'formatted') {
+    const resolved = resolveFormat(format);
+    if (copy.includeCode) {
+      return formatMoney(value, currency, resolved);
+    }
+    if (copy.includeSymbol) {
+      const parts = formatCurrencyParts(value, currency, resolved);
+      return `${parts.symbol}${parts.amount}`;
+    }
+    return formatNumber(value, resolved);
+  }
+
+  const base = normalizedFixed(value, decimals);
+  const withSymbol = copy.includeSymbol ? `${getCurrencySymbol(currency)}${base}` : base;
+  return copy.includeCode ? `${withSymbol} ${currency}` : withSymbol;
 }
 
 export function formatCurrencyParts(
@@ -110,6 +146,11 @@ function getFractionDigits(
 }
 
 function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+function clampDecimals(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(max, Math.max(min, Math.round(value)));
 }

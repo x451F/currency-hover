@@ -21,7 +21,11 @@ export const CURRENCY_FLAGS: Record<string, string> = {
   KRW: '🇰🇷',
   SGD: '🇸🇬',
   HKD: '🇭🇰',
-  ZAR: '🇿🇦'
+  ZAR: '🇿🇦',
+  BTC: '₿',
+  ETH: 'Ξ',
+  USDT: '₮',
+  SOL: '◎'
 };
 
 export const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -47,7 +51,11 @@ export const CURRENCY_SYMBOLS: Record<string, string> = {
   KRW: '₩',
   SGD: 'S$',
   HKD: 'HK$',
-  ZAR: 'R'
+  ZAR: 'R',
+  BTC: '₿',
+  ETH: 'Ξ',
+  USDT: '₮',
+  SOL: '◎'
 };
 
 export function getCurrencyFlag(code: string): string {
