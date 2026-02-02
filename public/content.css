@@ -67,9 +67,9 @@
 }
 
 #ccx-tooltip-root .ccx-amount-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  justify-content: flex-start;
   gap: 10px;
   position: relative;
 }
@@ -81,8 +81,12 @@
 }
 
 #ccx-tooltip-root .ccx-base-value .ccx-amount-text {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
+}
+
+#ccx-tooltip-root .ccx-base-value .ccx-symbol {
+  font-size: 14px;
 }
 
 #ccx-tooltip-root .ccx-subtitle {
@@ -96,8 +100,8 @@
 }
 
 #ccx-tooltip-root .ccx-row {
-  display: flex;
-  justify-content: flex-start;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 10px;
   font-size: 12px;
@@ -109,7 +113,7 @@
   color: var(--ccx-code);
 }
 
-#ccx-tooltip-root .ccx-converted {
+#ccx-tooltip-root .ccx-amount-cell {
   display: flex;
   align-items: baseline;
   gap: 4px;
@@ -123,17 +127,17 @@
 }
 
 #ccx-tooltip-root .ccx-symbol {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 #ccx-tooltip-root .ccx-amount-text {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 #ccx-tooltip-root .ccx-code-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   border: none;
   background: transparent;
   color: var(--ccx-text);
@@ -142,12 +146,25 @@
   border-radius: 8px;
 }
 
+#ccx-tooltip-root .ccx-base-btn .ccx-code {
+  font-size: 12px;
+}
+
 #ccx-tooltip-root .ccx-code-wrap {
   position: relative;
 }
 
 #ccx-tooltip-root .ccx-base-btn {
   font-size: 12px;
+}
+
+#ccx-tooltip-root .ccx-code-btn .ccx-code {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+}
+
+#ccx-tooltip-root .ccx-row .ccx-code-btn .ccx-code {
+  color: var(--ccx-code);
 }
 
 #ccx-tooltip-root .ccx-code-btn:hover {

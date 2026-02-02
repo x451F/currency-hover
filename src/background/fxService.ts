@@ -70,9 +70,7 @@ export async function getRates(
       } else {
         combinedRates = openEr.rates;
       }
-      if (!combinedDate) {
-        combinedDate = openEr.date;
-      }
+      combinedDate = pickLatestDate(combinedDate, openEr.date);
       errorMessage = undefined;
     } else if (errorMessage) {
       errorMessage = `${errorMessage}; ${openEr.error}`;
@@ -184,4 +182,22 @@ function normalizeDate(value?: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toISOString().slice(0, 10);
+}
+
+function pickLatestDate(...dates: string[]): string {
+  let latest = '';
+  let latestTime = -1;
+  for (const date of dates) {
+    if (!date) continue;
+    const time = Date.parse(date);
+    if (!Number.isNaN(time)) {
+      if (time > latestTime) {
+        latestTime = time;
+        latest = date;
+      }
+    } else if (!latest) {
+      latest = date;
+    }
+  }
+  return latest;
 }

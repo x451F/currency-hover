@@ -101,10 +101,6 @@ export class TooltipController {
     baseButton.className = 'ccx-code-btn ccx-base-btn';
     baseButton.setAttribute('aria-expanded', this.openBase ? 'true' : 'false');
 
-    const flag = document.createElement('span');
-    flag.className = 'ccx-flag';
-    flag.textContent = getCurrencyFlag(controls.baseCurrency);
-
     const code = document.createElement('span');
     code.className = 'ccx-code';
     code.textContent = controls.baseCurrency;
@@ -113,7 +109,7 @@ export class TooltipController {
     caret.className = 'ccx-caret';
     caret.textContent = '▾';
 
-    baseButton.append(flag, code, caret);
+    baseButton.append(code, caret);
     baseButton.addEventListener('click', () => {
       this.toggleBaseDropdown();
     });
@@ -166,7 +162,7 @@ export class TooltipController {
       item.className = 'ccx-row';
 
       const amountWrap = document.createElement('div');
-      amountWrap.className = row.missing ? 'ccx-converted ccx-missing' : 'ccx-converted';
+      amountWrap.className = row.missing ? 'ccx-amount-cell ccx-missing' : 'ccx-amount-cell';
 
       const symbol = document.createElement('span');
       symbol.className = 'ccx-symbol';
@@ -183,10 +179,6 @@ export class TooltipController {
       codeButton.className = 'ccx-code-btn';
       codeButton.setAttribute('aria-expanded', this.openIndex === index ? 'true' : 'false');
 
-      const flag = document.createElement('span');
-      flag.className = 'ccx-flag';
-      flag.textContent = getCurrencyFlag(row.code);
-
       const code = document.createElement('span');
       code.className = 'ccx-code';
       code.textContent = row.code;
@@ -195,7 +187,7 @@ export class TooltipController {
       caret.className = 'ccx-caret';
       caret.textContent = '▾';
 
-      codeButton.append(flag, code, caret);
+      codeButton.append(code, caret);
       codeButton.addEventListener('click', () => {
         this.toggleDropdown(index);
       });

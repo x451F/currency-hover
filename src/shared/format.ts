@@ -1,3 +1,5 @@
+import { getCurrencySymbol } from './currencyMeta';
+
 export function formatCurrency(value: number, currency: string, compact = false): string {
   try {
     const formatter = new Intl.NumberFormat(undefined, {
@@ -38,13 +40,18 @@ export function formatCurrencyParts(
     const formatter = new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency,
-      currencyDisplay: 'symbol',
+      currencyDisplay: 'narrowSymbol',
       notation: compact ? 'compact' : 'standard',
       maximumFractionDigits: compact ? 2 : 4,
       minimumFractionDigits: compact ? 0 : 2
     });
     const parts = formatter.formatToParts(value);
-    const symbol = parts.find((part) => part.type === 'currency')?.value ?? currency;
+    const rawSymbol = parts.find((part) => part.type === 'currency')?.value ?? currency;
+    const fallbackSymbol = getCurrencySymbol(currency);
+    const symbol =
+      rawSymbol.toUpperCase() === currency || /[A-Za-z]/.test(rawSymbol)
+        ? fallbackSymbol
+        : rawSymbol;
     const amount = parts
       .filter((part) => part.type !== 'currency')
       .map((part) => part.value)
@@ -53,6 +60,6 @@ export function formatCurrencyParts(
     return { symbol, amount };
   } catch {
     const amount = compact ? value.toFixed(2) : value.toFixed(4);
-    return { symbol: currency, amount };
+    return { symbol: getCurrencySymbol(currency), amount };
   }
 }
