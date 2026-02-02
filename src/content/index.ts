@@ -1,5 +1,5 @@
 import { SUPPORTED_CURRENCIES } from '../shared/constants';
-import { getSettings, onSettingsChanged } from '../shared/storage';
+import { getSettings, onSettingsChanged, setSettings } from '../shared/storage';
 import { detectCurrencyFromText, extractFirstNumber } from '../shared/parser';
 import { formatCurrencyParts } from '../shared/format';
 import { sendMessage } from '../shared/runtime';
@@ -68,6 +68,7 @@ async function init(): Promise<void> {
       onBaseChange: (code: string) => {
         overrideBase = code;
         activeBase = code;
+        void setSettings({ baseCurrency: code, targets });
         void convertAndRender();
       },
       onTargetChange: (index: number, code: string) => {
@@ -79,6 +80,7 @@ async function init(): Promise<void> {
         }
         overrideTargets = next;
         activeTargets = next;
+        void setSettings({ targets: next });
         void convertAndRender();
       }
     };

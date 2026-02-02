@@ -7,55 +7,118 @@
     <link rel="stylesheet" href="./popup.css" />
   </head>
   <body>
-    <div class="app">
-      <header>
-        <div class="title">Currency Hover</div>
-        <div class="subtitle">Highlight any number to convert.</div>
+    <div class="app" data-view="converter">
+      <header class="header">
+        <div>
+          <div class="title">Currency Hover</div>
+          <div class="subtitle">Convert across favorites</div>
+        </div>
+        <div class="header-actions">
+          <button id="open-settings" class="icon-btn" type="button" aria-label="Open settings">
+            ⚙️
+          </button>
+        </div>
       </header>
 
-      <label class="toggle">
-        <input type="checkbox" id="enabled" />
-        <span>Enabled</span>
-      </label>
-
-      <div class="field">
-        <label for="base">Base currency</label>
-        <select id="base"></select>
-      </div>
-
-      <div class="field">
-        <label>Favorites</label>
-        <div id="favorites" class="chips" aria-label="Favorite target currencies"></div>
-      </div>
-
-      <div class="field">
-        <label for="add-target">Add target (ISO code)</label>
-        <div class="inline">
-          <input id="add-target" type="text" maxlength="3" placeholder="UAH" />
-          <button id="add-target-btn" class="ghost small" type="button">Add</button>
+      <section id="converter-view" class="view">
+        <div class="card">
+          <div id="converter-list" class="converter-list"></div>
+          <div id="converter-error" class="inline-error" role="status" aria-live="polite"></div>
+          <div class="add-row">
+            <button id="add-currency-btn" class="ghost small" type="button">+ Add currency</button>
+          </div>
+          <div id="currency-picker" class="picker hidden">
+            <input
+              id="currency-search"
+              type="text"
+              placeholder="Search currency..."
+              autocomplete="off"
+            />
+            <div id="currency-options" class="picker-options"></div>
+          </div>
         </div>
-      </div>
 
-      <div class="field">
-        <label for="targets">All target currencies</label>
-        <select id="targets" multiple size="6"></select>
-      </div>
+        <div class="toggle-row">
+          <label class="toggle">
+            <input type="checkbox" id="detect-currency" />
+            <span>Auto-detect currency from selection</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="compact" />
+            <span>Compact tooltip</span>
+          </label>
+        </div>
 
-      <div class="field">
-        <label for="theme">Theme</label>
-        <select id="theme">
-          <option value="system">System</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
-      </div>
+        <div class="rates-row">
+          <span id="rates-updated">Rates updated: --</span>
+          <button id="refresh" class="icon-btn" type="button" aria-label="Refresh rates">⟳</button>
+        </div>
+      </section>
 
-      <div class="actions">
-        <button id="refresh">Refresh rates</button>
-        <button id="open-options" class="ghost">Options</button>
-      </div>
+      <section id="settings-view" class="view hidden">
+        <div class="settings-header">
+          <button id="back" class="icon-btn" type="button" aria-label="Back">
+            ←
+          </button>
+          <div class="settings-title">Settings</div>
+        </div>
 
-      <div id="status" class="status" role="status" aria-live="polite"></div>
+        <div class="section">
+          <div class="section-title">Theme</div>
+          <select id="theme" class="select">
+            <option value="system">System</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Favorites</div>
+          <div id="favorites-list" class="favorites-list"></div>
+          <div class="favorites-actions">
+            <button id="favorites-add" class="ghost small" type="button">+ Add currency</button>
+          </div>
+          <div id="favorites-picker" class="picker hidden">
+            <input
+              id="favorites-search"
+              type="text"
+              placeholder="Search currency..."
+              autocomplete="off"
+            />
+            <div id="favorites-options" class="picker-options"></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Tooltip</div>
+          <div class="setting-row">
+            <label for="auto-hide">Auto-hide</label>
+            <select id="auto-hide" class="select">
+              <option value="2">2s</option>
+              <option value="4">4s</option>
+              <option value="6">6s</option>
+              <option value="8">8s</option>
+              <option value="0">Never</option>
+            </select>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="show-date" />
+            <span>Show rate date</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="compact-setting" />
+            <span>Compact mode</span>
+          </label>
+        </div>
+
+        <details class="section">
+          <summary class="section-title">Advanced</summary>
+          <div class="setting-row">
+            <label for="ttl">Cache TTL (minutes)</label>
+            <input type="number" id="ttl" min="1" max="1440" step="1" />
+          </div>
+        </details>
+      </section>
     </div>
 
     <script type="module" src="./popup.ts"></script>

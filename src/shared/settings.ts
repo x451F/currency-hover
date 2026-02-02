@@ -24,8 +24,8 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
   baseCurrency: 'USD',
-  targets: ['UAH', 'PLN', 'GBP', 'EUR'],
-  favorites: ['UAH', 'PLN', 'GBP', 'EUR'],
+  targets: ['EUR', 'USD', 'UAH', 'PLN'],
+  favorites: ['EUR', 'USD', 'UAH', 'PLN'],
   cacheTtlMinutes: 60,
   tooltip: {
     autoHideSeconds: 6,
@@ -88,7 +88,7 @@ export function sanitizeSettings(settings: Settings): Settings {
     ? Math.max(1, Math.round(settings.cacheTtlMinutes))
     : DEFAULT_SETTINGS.cacheTtlMinutes;
   const autoHide = Number.isFinite(settings.tooltip.autoHideSeconds)
-    ? Math.max(1, Math.round(settings.tooltip.autoHideSeconds))
+    ? Math.max(0, Math.round(settings.tooltip.autoHideSeconds))
     : DEFAULT_SETTINGS.tooltip.autoHideSeconds;
   const refreshSeconds = Number.isFinite(settings.tooltip.refreshSeconds)
     ? Math.max(30, Math.round(settings.tooltip.refreshSeconds))
