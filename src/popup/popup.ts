@@ -1,5 +1,6 @@
 import { SUPPORTED_CURRENCIES } from '../shared/constants';
 import { getCurrencyFlag } from '../shared/currencyMeta';
+import { formatNumber, formatRawNumber } from '../shared/format';
 import { sendMessage } from '../shared/runtime';
 import { getSettings, onSettingsChanged, setSettings } from '../shared/storage';
 import { normalizeCurrencyList, type Settings } from '../shared/settings';
@@ -18,7 +19,7 @@ const picker = document.querySelector<HTMLDivElement>('#currency-picker')!;
 const pickerSearch = document.querySelector<HTMLInputElement>('#currency-search')!;
 const pickerOptions = document.querySelector<HTMLDivElement>('#currency-options')!;
 const detectToggle = document.querySelector<HTMLInputElement>('#detect-currency')!;
-const compactToggle = document.querySelector<HTMLInputElement>('#compact')!;
+const showDateQuickToggle = document.querySelector<HTMLInputElement>('#show-date-quick')!;
 const ratesUpdated = document.querySelector<HTMLSpanElement>('#rates-updated')!;
 const refreshBtn = document.querySelector<HTMLButtonElement>('#refresh')!;
 
@@ -30,8 +31,16 @@ const favoritesSearch = document.querySelector<HTMLInputElement>('#favorites-sea
 const favoritesOptions = document.querySelector<HTMLDivElement>('#favorites-options')!;
 const autoHideSelect = document.querySelector<HTMLSelectElement>('#auto-hide')!;
 const showDateToggle = document.querySelector<HTMLInputElement>('#show-date')!;
-const compactSettingToggle = document.querySelector<HTMLInputElement>('#compact-setting')!;
 const ttlInput = document.querySelector<HTMLInputElement>('#ttl')!;
+const formatMode = document.querySelector<HTMLSelectElement>('#format-mode')!;
+const formatAuto = document.querySelector<HTMLDivElement>('#format-auto')!;
+const formatFixed = document.querySelector<HTMLDivElement>('#format-fixed')!;
+const formatMin = document.querySelector<HTMLInputElement>('#format-min')!;
+const formatMax = document.querySelector<HTMLInputElement>('#format-max')!;
+const formatFixedDecimals = document.querySelector<HTMLInputElement>('#format-fixed-decimals')!;
+const formatGrouping = document.querySelector<HTMLInputElement>('#format-grouping')!;
+const formatCompact = document.querySelector<HTMLInputElement>('#format-compact')!;
+const copyModeSelect = document.querySelector<HTMLSelectElement>('#copy-mode')!;
 
 const supportedSet = new Set(SUPPORTED_CURRENCIES);
 
@@ -113,8 +122,8 @@ async function init(): Promise<void> {
     void setSettings({ detectCurrency: detectToggle.checked });
   });
 
-  compactToggle.addEventListener('change', () => {
-    void setSettings({ tooltip: { compact: compactToggle.checked } });
+  showDateQuickToggle.addEventListener('change', () => {
+    void setSettings({ tooltip: { showRateDate: showDateQuickToggle.checked } });
   });
 
   refreshBtn.addEventListener('click', async () => {
@@ -147,13 +156,51 @@ async function init(): Promise<void> {
     void setSettings({ tooltip: { showRateDate: showDateToggle.checked } });
   });
 
-  compactSettingToggle.addEventListener('change', () => {
-    void setSettings({ tooltip: { compact: compactSettingToggle.checked } });
-  });
-
   ttlInput.addEventListener('change', () => {
     const value = Math.max(1, Math.round(Number(ttlInput.value)) || 1);
     void setSettings({ cacheTtlMinutes: value });
+  });
+
+  formatMode.addEventListener('change', () => {
+    const mode = formatMode.value === 'fixed' ? 'fixed' : 'auto';
+    const next = { ...settings.format, mode };
+    void setSettings({ format: next });
+    updateFormatVisibility(next.mode);
+  });
+
+  formatMin.addEventListener('change', () => {
+    const min = clampNumber(formatMin.value, 0, 4, settings.format.minDecimals);
+    const max = clampNumber(formatMax.value, min, 6, settings.format.maxDecimals);
+    formatMin.value = String(min);
+    formatMax.value = String(max);
+    void setSettings({ format: { ...settings.format, minDecimals: min, maxDecimals: max } });
+  });
+
+  formatMax.addEventListener('change', () => {
+    const min = clampNumber(formatMin.value, 0, 4, settings.format.minDecimals);
+    const max = clampNumber(formatMax.value, min, 6, settings.format.maxDecimals);
+    formatMin.value = String(min);
+    formatMax.value = String(max);
+    void setSettings({ format: { ...settings.format, minDecimals: min, maxDecimals: max } });
+  });
+
+  formatFixedDecimals.addEventListener('change', () => {
+    const fixed = clampNumber(formatFixedDecimals.value, 0, 6, settings.format.fixedDecimals);
+    formatFixedDecimals.value = String(fixed);
+    void setSettings({ format: { ...settings.format, fixedDecimals: fixed } });
+  });
+
+  formatGrouping.addEventListener('change', () => {
+    void setSettings({ format: { ...settings.format, grouping: formatGrouping.checked } });
+  });
+
+  formatCompact.addEventListener('change', () => {
+    void setSettings({ format: { ...settings.format, compact: formatCompact.checked } });
+  });
+
+  copyModeSelect.addEventListener('change', () => {
+    const copyMode = copyModeSelect.value === 'raw' ? 'raw' : 'formatted';
+    void setSettings({ format: { ...settings.format, copyMode } });
   });
 
   document.addEventListener('click', (event) => {
@@ -203,7 +250,7 @@ function renderConverter(): void {
   rowMap.clear();
 
   detectToggle.checked = settings.detectCurrency;
-  compactToggle.checked = settings.tooltip.compact;
+  showDateQuickToggle.checked = settings.tooltip.showRateDate;
 
   favorites.forEach((code) => {
     const row = document.createElement('div');
@@ -228,7 +275,7 @@ function renderConverter(): void {
     input.type = 'text';
     input.inputMode = 'decimal';
     input.placeholder = '0.00';
-    input.value = values[code] !== undefined ? formatNumber(values[code]) : '';
+    input.value = values[code] !== undefined ? formatNumber(values[code], settings.format) : '';
 
     const remove = document.createElement('button');
     remove.className = 'remove-btn';
@@ -236,11 +283,16 @@ function renderConverter(): void {
     remove.textContent = '×';
     remove.addEventListener('click', () => removeFavorite(code));
 
-    input.addEventListener('focus', () => setActiveBase(code));
+    input.addEventListener('focus', () => {
+      setActiveBase(code);
+      if (values[code] !== undefined) {
+        input.value = formatRawNumber(values[code]);
+      }
+    });
     input.addEventListener('input', () => handleInput(code, input.value));
     input.addEventListener('blur', () => {
       if (values[code] !== undefined) {
-        input.value = formatNumber(values[code]);
+        input.value = formatNumber(values[code], settings.format);
       }
       editingCode = null;
     });
@@ -260,9 +312,16 @@ function renderConverter(): void {
 function renderSettings(): void {
   themeSelect.value = settings.theme;
   showDateToggle.checked = settings.tooltip.showRateDate;
-  compactSettingToggle.checked = settings.tooltip.compact;
   autoHideSelect.value = String(settings.tooltip.autoHideSeconds);
   ttlInput.value = String(settings.cacheTtlMinutes);
+  formatMode.value = settings.format.mode;
+  formatMin.value = String(settings.format.minDecimals);
+  formatMax.value = String(settings.format.maxDecimals);
+  formatFixedDecimals.value = String(settings.format.fixedDecimals);
+  formatGrouping.checked = settings.format.grouping;
+  formatCompact.checked = settings.format.compact;
+  copyModeSelect.value = settings.format.copyMode;
+  updateFormatVisibility(settings.format.mode);
 
   favoritesList.innerHTML = '';
   favorites.forEach((code, index) => {
@@ -378,7 +437,7 @@ function applyValuesToInputs(active: string): void {
   rowMap.forEach(({ input }, code) => {
     if (code === active && editingCode === active) return;
     const value = values[code];
-    input.value = value !== undefined ? formatNumber(value) : '';
+    input.value = value !== undefined ? formatNumber(value, settings.format) : '';
   });
   isProgrammatic = false;
 }
@@ -510,10 +569,15 @@ function parseNumber(value: string): number | null {
   return parsed * sign;
 }
 
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: 4
-  }).format(value);
+function updateFormatVisibility(mode: 'auto' | 'fixed'): void {
+  formatAuto.classList.toggle('hidden', mode !== 'auto');
+  formatFixed.classList.toggle('hidden', mode !== 'fixed');
+}
+
+function clampNumber(value: string, min: number, max: number, fallback: number): number {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
 }
 
 init().catch((error) => {

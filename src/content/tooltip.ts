@@ -1,13 +1,25 @@
 import { getCurrencyFlag } from '../shared/currencyMeta';
 import { applyTheme, type ThemeSetting } from '../shared/theme';
 
+const COPY_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><rect x="5" y="5" width="10" height="10" rx="2"></rect></svg>';
+const CHECK_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"></path></svg>';
+
 interface TooltipControls {
   baseAmount: string;
   baseSymbol: string;
   baseCurrency: string;
-  availableCurrencies: string[];
+  baseInputValue: string;
+  baseCopyValue: string;
+  availableBaseCurrencies: string[];
+  availableTargetCurrencies: string[];
   onBaseChange: (code: string) => void;
   onTargetChange: (index: number, code: string) => void;
+  onBaseEditStart: () => void;
+  onBaseAmountInput: (raw: string) => void;
+  onBaseAmountCommit: (raw: string) => void;
+  onBaseAmountCancel: () => void;
 }
 
 type TooltipState =
@@ -16,7 +28,13 @@ type TooltipState =
   | {
       type: 'ready';
       controls: TooltipControls;
-      conversions: Array<{ code: string; symbol: string; amount: string; missing?: boolean }>;
+      conversions: Array<{
+        code: string;
+        symbol: string;
+        amount: string;
+        copyValue: string;
+        missing?: boolean;
+      }>;
       rateLabel?: string;
       errorMessage?: string;
     };
@@ -30,6 +48,8 @@ export class TooltipController {
   private onHideCallback: (() => void) | null = null;
   private openIndex: number | null = null;
   private openBase = false;
+  private isEditingBase = false;
+  private baseEditValue = '';
   private lastState: TooltipState | null = null;
   private lastRect: DOMRect | null = null;
 
@@ -62,6 +82,13 @@ export class TooltipController {
     this.onHideCallback = callback;
   }
 
+  resetEditing(): void {
+    this.isEditingBase = false;
+    this.baseEditValue = '';
+    this.openIndex = null;
+    this.openBase = false;
+  }
+
   show(rect: DOMRect, state: TooltipState, autoHideSeconds: number, compact: boolean): void {
     this.root.classList.toggle('ccx-compact', compact);
     this.lastState = state;
@@ -82,6 +109,8 @@ export class TooltipController {
     this.clearHideTimer();
     this.openIndex = null;
     this.openBase = false;
+    this.isEditingBase = false;
+    this.baseEditValue = '';
     if (this.onHideCallback) {
       this.onHideCallback();
     }
@@ -110,11 +139,55 @@ export class TooltipController {
     symbol.className = 'ccx-symbol';
     symbol.textContent = controls.baseSymbol;
 
-    const amount = document.createElement('span');
-    amount.className = 'ccx-amount-text';
-    amount.textContent = controls.baseAmount;
+    const amountContainer = document.createElement('div');
+    amountContainer.className = 'ccx-amount-main';
 
-    amountWrap.append(symbol, amount);
+    if (this.isEditingBase) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.inputMode = 'decimal';
+      input.className = 'ccx-base-input';
+      input.value = this.baseEditValue;
+
+      input.addEventListener('input', () => {
+        this.baseEditValue = input.value;
+        controls.onBaseAmountInput(input.value);
+      });
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          controls.onBaseAmountCommit(input.value);
+          this.exitBaseEdit();
+        }
+        if (event.key === 'Escape') {
+          controls.onBaseAmountCancel();
+          this.exitBaseEdit();
+        }
+      });
+      input.addEventListener('blur', () => {
+        controls.onBaseAmountCommit(input.value);
+        this.exitBaseEdit();
+      });
+
+      amountContainer.appendChild(input);
+      window.setTimeout(() => {
+        input.focus();
+        input.select();
+      }, 0);
+    } else {
+      const amount = document.createElement('button');
+      amount.type = 'button';
+      amount.className = 'ccx-amount-text ccx-amount-editable';
+      amount.textContent = controls.baseAmount;
+      amount.addEventListener('click', () => {
+        controls.onBaseEditStart();
+        this.startBaseEdit(controls.baseInputValue);
+      });
+      amountContainer.appendChild(amount);
+    }
+
+    const baseCopy = this.buildCopyButton(controls.baseCopyValue, amountWrap);
+
+    amountWrap.append(symbol, amountContainer, baseCopy);
 
     const baseButton = document.createElement('button');
     baseButton.type = 'button';
@@ -143,7 +216,7 @@ export class TooltipController {
 
     if (this.openBase) {
       baseWrap.appendChild(
-        this.buildDropdown(controls.baseCurrency, controls.availableCurrencies, (codeValue) => {
+        this.buildDropdown(controls.baseCurrency, controls.availableBaseCurrencies, (codeValue) => {
           this.openBase = false;
           controls.onBaseChange(codeValue);
         })
@@ -199,7 +272,13 @@ export class TooltipController {
       amount.className = 'ccx-amount-text';
       amount.textContent = row.amount;
 
-      amountWrap.append(symbol, amount);
+      const amountContainer = document.createElement('div');
+      amountContainer.className = 'ccx-amount-main';
+      amountContainer.append(amount);
+
+      const copyBtn = this.buildCopyButton(row.copyValue, item);
+
+      amountWrap.append(symbol, amountContainer, copyBtn);
 
       const codeButton = document.createElement('button');
       codeButton.type = 'button';
@@ -228,7 +307,7 @@ export class TooltipController {
 
       if (this.openIndex === index) {
         codeWrap.appendChild(
-          this.buildDropdown(row.code, controls.availableCurrencies, (codeValue) => {
+          this.buildDropdown(row.code, controls.availableTargetCurrencies, (codeValue) => {
             this.openIndex = null;
             controls.onTargetChange(index, codeValue);
           })
@@ -308,6 +387,69 @@ export class TooltipController {
       window.clearTimeout(this.hideTimer);
       this.hideTimer = null;
     }
+  }
+
+  private startBaseEdit(value: string): void {
+    this.isEditingBase = true;
+    this.baseEditValue = value;
+    this.rerender();
+  }
+
+  private exitBaseEdit(): void {
+    this.isEditingBase = false;
+    this.baseEditValue = '';
+    this.rerender();
+  }
+
+  private buildCopyButton(text: string, highlightEl: HTMLElement): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'ccx-copy-btn';
+    button.setAttribute('aria-label', 'Copy amount');
+    button.innerHTML = COPY_SVG;
+    if (!text) {
+      button.disabled = true;
+    }
+
+    button.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      if (!text) return;
+      await this.copyText(text);
+      this.showCopied(button, highlightEl);
+    });
+
+    return button;
+  }
+
+  private showCopied(button: HTMLButtonElement, highlightEl: HTMLElement): void {
+    button.innerHTML = CHECK_SVG;
+    button.classList.add('ccx-copy-success');
+    highlightEl.classList.add('ccx-copied');
+    window.setTimeout(() => {
+      button.innerHTML = COPY_SVG;
+      button.classList.remove('ccx-copy-success');
+      highlightEl.classList.remove('ccx-copied');
+    }, 900);
+  }
+
+  private async copyText(text: string): Promise<void> {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+    } catch {
+      // ignore and fallback
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
   }
 
   private buildDropdown(

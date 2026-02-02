@@ -25,6 +25,10 @@ export async function setSettings(patch: Partial<Settings>): Promise<Settings> {
     tooltip: {
       ...current.tooltip,
       ...(patch.tooltip ?? {})
+    },
+    format: {
+      ...current.format,
+      ...(patch.format ?? {})
     }
   });
   await chrome.storage.sync.set({ [SETTINGS_KEY]: next });

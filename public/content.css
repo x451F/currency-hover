@@ -123,12 +123,21 @@
 }
 
 #ccx-tooltip-root .ccx-amount-cell {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   white-space: nowrap;
+}
+
+#ccx-tooltip-root .ccx-amount-main {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
 }
 
 #ccx-tooltip-root .ccx-missing {
@@ -141,6 +150,36 @@
 
 #ccx-tooltip-root .ccx-amount-text {
   font-size: 12px;
+}
+
+#ccx-tooltip-root .ccx-amount-editable {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+
+#ccx-tooltip-root .ccx-amount-editable:hover {
+  color: var(--ccx-code);
+}
+
+#ccx-tooltip-root .ccx-base-input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--ccx-border);
+  border-radius: 8px;
+  padding: 2px 6px;
+  color: var(--ccx-text);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+#ccx-tooltip-root .ccx-base-input:focus {
+  outline: none;
+  border-color: rgba(61, 208, 177, 0.6);
+  box-shadow: 0 0 0 2px rgba(61, 208, 177, 0.2);
 }
 
 #ccx-tooltip-root .ccx-code-btn {
@@ -178,6 +217,56 @@
 
 #ccx-tooltip-root .ccx-row .ccx-code-btn .ccx-code {
   color: var(--ccx-code);
+}
+
+#ccx-tooltip-root .ccx-copy-btn {
+  border: none;
+  background: transparent;
+  color: var(--ccx-muted);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+#ccx-tooltip-root .ccx-copy-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#ccx-tooltip-root .ccx-row:hover .ccx-copy-btn,
+#ccx-tooltip-root .ccx-amount-row:hover .ccx-copy-btn {
+  opacity: 1;
+}
+
+#ccx-tooltip-root .ccx-copy-btn:hover {
+  color: var(--ccx-code);
+  background: rgba(61, 208, 177, 0.12);
+}
+
+#ccx-tooltip-root .ccx-copy-btn:disabled {
+  cursor: default;
+  opacity: 0;
+}
+
+#ccx-tooltip-root .ccx-copy-success {
+  color: #3dd0b1;
+}
+
+#ccx-tooltip-root .ccx-copied {
+  background: rgba(61, 208, 177, 0.12);
+  border-radius: 8px;
 }
 
 #ccx-tooltip-root .ccx-code-btn:hover {

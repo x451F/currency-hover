@@ -1,24 +1,27 @@
 import { SUPPORTED_CURRENCIES } from '../shared/constants';
 import { getSettings, onSettingsChanged, setSettings } from '../shared/storage';
 import { detectCurrencyFromText, extractFirstNumber } from '../shared/parser';
-import { formatCurrencyParts } from '../shared/format';
+import { formatCurrencyParts, formatMoney, formatRawNumber } from '../shared/format';
 import { sendMessage } from '../shared/runtime';
 import { TooltipController } from './tooltip';
 import { getSelectionInfo } from './selection';
 import type { ConvertResponse } from '../background/messaging';
+import { normalizeCurrencyList } from '../shared/settings';
 
 async function init(): Promise<void> {
   const tooltip = new TooltipController();
   let currentSettings = await getSettings();
   let requestSeq = 0;
   let lastSelection: { amount: number; rect: DOMRect } | null = null;
-  let lastDetectedBase: string | null = null;
   let overrideBase: string | null = null;
-  let overrideTargets: string[] | null = null;
   let activeBase = currentSettings.baseCurrency;
-  let activeTargets = [...currentSettings.targets];
+  let activeFavorites = getEffectiveFavorites(currentSettings);
+  let activeTargets = getTargets(activeBase, activeFavorites);
   let refreshTimer: number | null = null;
   let tooltipVisible = false;
+  let currentAmount = 0;
+  let editStartAmount: number | null = null;
+  let inputDebounce: number | null = null;
 
   tooltip.setTheme(currentSettings.theme);
   tooltip.setOnHide(() => {
@@ -26,7 +29,11 @@ async function init(): Promise<void> {
     clearRefresh();
     lastSelection = null;
     overrideBase = null;
-    overrideTargets = null;
+    editStartAmount = null;
+    if (inputDebounce) {
+      window.clearTimeout(inputDebounce);
+      inputDebounce = null;
+    }
   });
 
   const handleSelection = async (): Promise<void> => {
@@ -38,14 +45,21 @@ async function init(): Promise<void> {
     const parsed = extractFirstNumber(selectionInfo.text);
     if (!parsed) return;
 
+    if (inputDebounce) {
+      window.clearTimeout(inputDebounce);
+      inputDebounce = null;
+    }
+    tooltip.resetEditing();
     lastSelection = { amount: parsed.value, rect: selectionInfo.rect };
-    lastDetectedBase = currentSettings.detectCurrency
+    currentAmount = parsed.value;
+    editStartAmount = null;
+    const detectedBase = currentSettings.detectCurrency
       ? detectCurrencyFromText(selectionInfo.text)
       : null;
     overrideBase = null;
-    overrideTargets = null;
-    activeBase = lastDetectedBase ?? currentSettings.baseCurrency;
-    activeTargets = [...currentSettings.targets];
+    activeFavorites = getEffectiveFavorites(currentSettings);
+    activeBase = detectedBase ?? currentSettings.baseCurrency;
+    activeTargets = getTargets(activeBase, activeFavorites);
 
     await convertAndRender();
     scheduleRefresh();
@@ -54,34 +68,64 @@ async function init(): Promise<void> {
   const convertAndRender = async (forceRefresh = false): Promise<void> => {
     if (!lastSelection) return;
     const base = overrideBase ?? activeBase;
-    const targets =
-      (overrideTargets ?? activeTargets).length > 0
-        ? [...(overrideTargets ?? activeTargets)]
-        : [base];
-    const compact = currentSettings.tooltip.compact;
-    const baseParts = formatCurrencyParts(lastSelection.amount, base, compact);
+    const targets = activeTargets.length > 0 ? [...activeTargets] : [];
+    const formatSettings = currentSettings.format;
+    const baseParts = formatCurrencyParts(currentAmount, base, formatSettings);
+    const baseCopyValue = formatCopyValue(currentAmount, base, formatSettings);
     const controls = {
       baseAmount: baseParts.amount,
       baseSymbol: baseParts.symbol,
       baseCurrency: base,
-      availableCurrencies: [...SUPPORTED_CURRENCIES],
+      baseInputValue: formatRawNumber(currentAmount),
+      baseCopyValue,
+      availableBaseCurrencies: [...SUPPORTED_CURRENCIES],
+      availableTargetCurrencies: SUPPORTED_CURRENCIES.filter((code) => code !== base),
       onBaseChange: (code: string) => {
         overrideBase = code;
         activeBase = code;
-        void setSettings({ baseCurrency: code, targets });
+        activeTargets = getTargets(activeBase, activeFavorites);
+        void setSettings({ baseCurrency: code, targets: activeFavorites });
         void convertAndRender();
       },
       onTargetChange: (index: number, code: string) => {
-        const next = [...targets];
-        if (index >= next.length) {
-          next.push(code);
+        const nextTargets = [...targets];
+        if (index >= nextTargets.length) {
+          nextTargets.push(code);
         } else {
-          next[index] = code;
+          nextTargets[index] = code;
         }
-        overrideTargets = next;
-        activeTargets = next;
-        void setSettings({ targets: next });
+        const nextFavorites = updateFavoritesFromTargets(activeBase, activeFavorites, nextTargets);
+        activeFavorites = nextFavorites;
+        activeTargets = getTargets(activeBase, activeFavorites);
+        void setSettings({ favorites: nextFavorites, targets: nextFavorites });
         void convertAndRender();
+      },
+      onBaseEditStart: () => {
+        editStartAmount = currentAmount;
+      },
+      onBaseAmountInput: (raw: string) => {
+        const parsed = parseInput(raw);
+        if (parsed === null) return;
+        currentAmount = parsed;
+        scheduleInputConvert();
+      },
+      onBaseAmountCommit: (raw: string) => {
+        const parsed = parseInput(raw);
+        if (parsed !== null) {
+          currentAmount = parsed;
+          void convertAndRender();
+        } else if (editStartAmount !== null) {
+          currentAmount = editStartAmount;
+          void convertAndRender();
+        }
+        editStartAmount = null;
+      },
+      onBaseAmountCancel: () => {
+        if (editStartAmount !== null) {
+          currentAmount = editStartAmount;
+          void convertAndRender();
+        }
+        editStartAmount = null;
       }
     };
 
@@ -89,20 +133,21 @@ async function init(): Promise<void> {
       lastSelection.rect,
       { type: 'loading', controls },
       currentSettings.tooltip.autoHideSeconds,
-      compact
+      currentSettings.format.compact
     );
     tooltipVisible = true;
 
     const requestId = ++requestSeq;
+    const requestTargets = targets.length > 0 ? targets : [base];
 
     let response: ConvertResponse;
     try {
       response = await sendMessage<ConvertResponse>({
         type: 'CONVERT',
         payload: {
-          amount: lastSelection.amount,
+          amount: currentAmount,
           base,
-          targets,
+          targets: requestTargets,
           forceRefresh
         }
       });
@@ -113,7 +158,7 @@ async function init(): Promise<void> {
         lastSelection.rect,
         { type: 'error', controls, message },
         currentSettings.tooltip.autoHideSeconds,
-        compact
+        currentSettings.format.compact
       );
       return;
     }
@@ -125,7 +170,7 @@ async function init(): Promise<void> {
         lastSelection.rect,
         { type: 'error', controls, message: response.error },
         currentSettings.tooltip.autoHideSeconds,
-        compact
+        currentSettings.format.compact
       );
       return;
     }
@@ -133,10 +178,15 @@ async function init(): Promise<void> {
     const conversions = targets.map((code) => {
       const value = response.conversions[code];
       if (typeof value !== 'number') {
-        return { code, symbol: '', amount: '—', missing: true };
+        return { code, symbol: '', amount: '—', copyValue: '', missing: true };
       }
-      const parts = formatCurrencyParts(value, code, compact);
-      return { code, symbol: parts.symbol, amount: parts.amount };
+      const parts = formatCurrencyParts(value, code, formatSettings);
+      return {
+        code,
+        symbol: parts.symbol,
+        amount: parts.amount,
+        copyValue: formatCopyValue(value, code, formatSettings)
+      };
     });
 
     const rateLabel = currentSettings.tooltip.showRateDate
@@ -153,7 +203,7 @@ async function init(): Promise<void> {
         errorMessage: response.error
       },
       currentSettings.tooltip.autoHideSeconds,
-      compact
+      currentSettings.format.compact
     );
     tooltipVisible = true;
   };
@@ -164,10 +214,12 @@ async function init(): Promise<void> {
     if (!overrideBase) {
       activeBase = currentSettings.baseCurrency;
     }
-    if (!overrideTargets) {
-      activeTargets = [...currentSettings.targets];
-    }
+    activeFavorites = getEffectiveFavorites(currentSettings);
+    activeTargets = getTargets(activeBase, activeFavorites);
     scheduleRefresh();
+    if (tooltipVisible) {
+      void convertAndRender();
+    }
     if (!currentSettings.enabled) {
       tooltip.hide();
     }
@@ -215,6 +267,15 @@ async function init(): Promise<void> {
     }, refreshMs);
   }
 
+  function scheduleInputConvert(): void {
+    if (inputDebounce) {
+      window.clearTimeout(inputDebounce);
+    }
+    inputDebounce = window.setTimeout(() => {
+      void convertAndRender();
+    }, 300);
+  }
+
   function clearRefresh(): void {
     if (refreshTimer) {
       window.clearTimeout(refreshTimer);
@@ -246,6 +307,61 @@ async function init(): Promise<void> {
       }
     }
     return fallbackDate;
+  }
+
+  function parseInput(raw: string): number | null {
+    const parsed = extractFirstNumber(raw);
+    return parsed ? parsed.value : null;
+  }
+
+  function getEffectiveFavorites(settings: typeof currentSettings): string[] {
+    if (Array.isArray(settings.favorites) && settings.favorites.length > 0) {
+      return normalizeCurrencyList(settings.favorites);
+    }
+    const fallback =
+      settings.favorites === undefined && Array.isArray(settings.targets) && settings.targets.length > 0
+        ? normalizeCurrencyList(settings.targets)
+        : ['EUR', 'USD', 'UAH', 'PLN'];
+    void setSettings({ favorites: fallback, targets: fallback });
+    if (settings.favorites === undefined && Array.isArray(settings.targets)) {
+      return fallback;
+    }
+    return fallback;
+  }
+
+  function getTargets(base: string, favorites: string[]): string[] {
+    const filtered = favorites.filter((code) => code !== base);
+    return filtered.length ? filtered : favorites.filter((code) => code !== base);
+  }
+
+  function updateFavoritesFromTargets(base: string, favorites: string[], targets: string[]): string[] {
+    if (!favorites.includes(base)) {
+      return normalizeCurrencyList(targets);
+    }
+    const next: string[] = [];
+    let targetIndex = 0;
+    for (const code of favorites) {
+      if (code === base) {
+        next.push(code);
+        continue;
+      }
+      if (targetIndex < targets.length) {
+        next.push(targets[targetIndex]);
+        targetIndex += 1;
+      }
+    }
+    while (targetIndex < targets.length) {
+      next.push(targets[targetIndex]);
+      targetIndex += 1;
+    }
+    return normalizeCurrencyList(next);
+  }
+
+  function formatCopyValue(value: number, currency: string, formatSettings: typeof currentSettings.format): string {
+    if (!Number.isFinite(value)) return '';
+    return formatSettings.copyMode === 'raw'
+      ? formatRawNumber(value)
+      : formatMoney(value, currency, formatSettings);
   }
 }
 

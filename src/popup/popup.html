@@ -44,8 +44,8 @@
             <span>Auto-detect currency from selection</span>
           </label>
           <label class="toggle">
-            <input type="checkbox" id="compact" />
-            <span>Compact tooltip</span>
+            <input type="checkbox" id="show-date-quick" />
+            <span>Show rate date</span>
           </label>
         </div>
 
@@ -105,10 +105,45 @@
             <input type="checkbox" id="show-date" />
             <span>Show rate date</span>
           </label>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Number formatting</div>
+          <div class="setting-row">
+            <label for="format-mode">Display mode</label>
+            <select id="format-mode" class="select">
+              <option value="auto">Auto (recommended)</option>
+              <option value="fixed">Fixed decimals</option>
+            </select>
+            <div class="helper-text">Auto: 2 decimals normally, more precision for small values.</div>
+          </div>
+          <div id="format-auto" class="setting-row">
+            <label for="format-min">Min decimals</label>
+            <div class="inline-fields">
+              <input type="number" id="format-min" min="0" max="4" step="1" placeholder="Min" />
+              <input type="number" id="format-max" min="0" max="6" step="1" placeholder="Max" />
+            </div>
+            <div class="helper-text">Max must be ≥ min.</div>
+          </div>
+          <div id="format-fixed" class="setting-row hidden">
+            <label for="format-fixed-decimals">Decimals</label>
+            <input type="number" id="format-fixed-decimals" min="0" max="6" step="1" />
+          </div>
           <label class="toggle">
-            <input type="checkbox" id="compact-setting" />
-            <span>Compact mode</span>
+            <input type="checkbox" id="format-grouping" />
+            <span>Group thousands</span>
           </label>
+          <label class="toggle">
+            <input type="checkbox" id="format-compact" />
+            <span>Compact notation</span>
+          </label>
+          <div class="setting-row">
+            <label for="copy-mode">Copy values</label>
+            <select id="copy-mode" class="select">
+              <option value="formatted">Formatted</option>
+              <option value="raw">Raw</option>
+            </select>
+          </div>
         </div>
 
         <details class="section">
