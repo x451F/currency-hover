@@ -17,7 +17,7 @@ type TooltipState =
       type: 'ready';
       controls: TooltipControls;
       conversions: Array<{ code: string; symbol: string; amount: string; missing?: boolean }>;
-      rateDate?: string;
+      rateLabel?: string;
       errorMessage?: string;
     };
 
@@ -25,6 +25,9 @@ export class TooltipController {
   private root: HTMLDivElement;
   private card: HTMLDivElement;
   private hideTimer: number | null = null;
+  private autoHideMs = 0;
+  private isHovered = false;
+  private onHideCallback: (() => void) | null = null;
   private openIndex: number | null = null;
   private openBase = false;
   private lastState: TooltipState | null = null;
@@ -37,34 +40,51 @@ export class TooltipController {
     this.card.className = 'ccx-card';
     this.root.appendChild(this.card);
     document.documentElement.appendChild(this.root);
+
+    this.root.addEventListener('mouseenter', () => {
+      this.isHovered = true;
+      this.clearHideTimer();
+    });
+
+    this.root.addEventListener('mouseleave', () => {
+      this.isHovered = false;
+      if (this.autoHideMs > 0) {
+        this.scheduleHide();
+      }
+    });
   }
 
   setTheme(theme: ThemeSetting): void {
     applyTheme(this.root, theme);
   }
 
+  setOnHide(callback: (() => void) | null): void {
+    this.onHideCallback = callback;
+  }
+
   show(rect: DOMRect, state: TooltipState, autoHideSeconds: number, compact: boolean): void {
     this.root.classList.toggle('ccx-compact', compact);
     this.lastState = state;
     this.lastRect = rect;
+    this.autoHideMs = Math.max(0, autoHideSeconds * 1000);
     this.render(state);
     this.position(rect);
     this.root.classList.add('ccx-visible');
 
-    if (this.hideTimer) {
-      window.clearTimeout(this.hideTimer);
+    this.clearHideTimer();
+    if (!this.isHovered && this.autoHideMs > 0) {
+      this.scheduleHide();
     }
-    this.hideTimer = window.setTimeout(() => this.hide(), autoHideSeconds * 1000);
   }
 
   hide(): void {
     this.root.classList.remove('ccx-visible');
-    if (this.hideTimer) {
-      window.clearTimeout(this.hideTimer);
-      this.hideTimer = null;
-    }
+    this.clearHideTimer();
     this.openIndex = null;
     this.openBase = false;
+    if (this.onHideCallback) {
+      this.onHideCallback();
+    }
   }
 
   contains(target: EventTarget | null): boolean {
@@ -84,7 +104,7 @@ export class TooltipController {
     amountRow.className = 'ccx-amount-row';
 
     const amountWrap = document.createElement('div');
-    amountWrap.className = 'ccx-converted ccx-base-value';
+    amountWrap.className = 'ccx-amount-cell ccx-base-value';
 
     const symbol = document.createElement('span');
     symbol.className = 'ccx-symbol';
@@ -130,10 +150,17 @@ export class TooltipController {
       );
     }
 
-    if (state.type === 'ready' && state.rateDate) {
+    if (state.type === 'ready' && state.rateLabel) {
       const subtitle = document.createElement('div');
       subtitle.className = 'ccx-subtitle';
-      subtitle.textContent = `Rates as of ${state.rateDate}`;
+      const dot = document.createElement('span');
+      dot.className = 'ccx-live-dot';
+      dot.textContent = '●';
+
+      const text = document.createElement('span');
+      text.textContent = state.rateLabel;
+
+      subtitle.append(dot, text);
       header.appendChild(subtitle);
     }
 
@@ -269,6 +296,18 @@ export class TooltipController {
     this.render(this.lastState);
     this.position(this.lastRect);
     this.root.classList.add('ccx-visible');
+  }
+
+  private scheduleHide(): void {
+    this.clearHideTimer();
+    this.hideTimer = window.setTimeout(() => this.hide(), this.autoHideMs);
+  }
+
+  private clearHideTimer(): void {
+    if (this.hideTimer) {
+      window.clearTimeout(this.hideTimer);
+      this.hideTimer = null;
+    }
   }
 
   private buildDropdown(

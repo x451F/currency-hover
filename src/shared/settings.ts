@@ -7,6 +7,7 @@ export interface TooltipSettings {
   autoHideSeconds: number;
   showRateDate: boolean;
   compact: boolean;
+  refreshSeconds: number;
 }
 
 export interface Settings {
@@ -29,7 +30,8 @@ export const DEFAULT_SETTINGS: Settings = {
   tooltip: {
     autoHideSeconds: 6,
     showRateDate: true,
-    compact: false
+    compact: false,
+    refreshSeconds: 300
   },
   detectCurrency: false,
   theme: 'system'
@@ -88,6 +90,9 @@ export function sanitizeSettings(settings: Settings): Settings {
   const autoHide = Number.isFinite(settings.tooltip.autoHideSeconds)
     ? Math.max(1, Math.round(settings.tooltip.autoHideSeconds))
     : DEFAULT_SETTINGS.tooltip.autoHideSeconds;
+  const refreshSeconds = Number.isFinite(settings.tooltip.refreshSeconds)
+    ? Math.max(30, Math.round(settings.tooltip.refreshSeconds))
+    : DEFAULT_SETTINGS.tooltip.refreshSeconds;
 
   return {
     ...settings,
@@ -97,7 +102,8 @@ export function sanitizeSettings(settings: Settings): Settings {
     cacheTtlMinutes: ttl,
     tooltip: {
       ...settings.tooltip,
-      autoHideSeconds: autoHide
+      autoHideSeconds: autoHide,
+      refreshSeconds
     },
     theme: normalizeTheme(settings.theme)
   };

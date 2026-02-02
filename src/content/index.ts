@@ -17,8 +17,17 @@ async function init(): Promise<void> {
   let overrideTargets: string[] | null = null;
   let activeBase = currentSettings.baseCurrency;
   let activeTargets = [...currentSettings.targets];
+  let refreshTimer: number | null = null;
+  let tooltipVisible = false;
 
   tooltip.setTheme(currentSettings.theme);
+  tooltip.setOnHide(() => {
+    tooltipVisible = false;
+    clearRefresh();
+    lastSelection = null;
+    overrideBase = null;
+    overrideTargets = null;
+  });
 
   const handleSelection = async (): Promise<void> => {
     if (!currentSettings.enabled) return;
@@ -39,9 +48,10 @@ async function init(): Promise<void> {
     activeTargets = [...currentSettings.targets];
 
     await convertAndRender();
+    scheduleRefresh();
   };
 
-  const convertAndRender = async (): Promise<void> => {
+  const convertAndRender = async (forceRefresh = false): Promise<void> => {
     if (!lastSelection) return;
     const base = overrideBase ?? activeBase;
     const targets =
@@ -79,6 +89,7 @@ async function init(): Promise<void> {
       currentSettings.tooltip.autoHideSeconds,
       compact
     );
+    tooltipVisible = true;
 
     const requestId = ++requestSeq;
 
@@ -89,7 +100,8 @@ async function init(): Promise<void> {
         payload: {
           amount: lastSelection.amount,
           base,
-          targets
+          targets,
+          forceRefresh
         }
       });
     } catch (error) {
@@ -125,18 +137,23 @@ async function init(): Promise<void> {
       return { code, symbol: parts.symbol, amount: parts.amount };
     });
 
+    const rateLabel = currentSettings.tooltip.showRateDate
+      ? formatRateLabel(response.fetchedAt, response.date)
+      : undefined;
+
     tooltip.show(
       lastSelection.rect,
       {
         type: 'ready',
         controls,
         conversions,
-        rateDate: currentSettings.tooltip.showRateDate ? response.date : undefined,
+        rateLabel,
         errorMessage: response.error
       },
       currentSettings.tooltip.autoHideSeconds,
       compact
     );
+    tooltipVisible = true;
   };
 
   onSettingsChanged((next) => {
@@ -148,6 +165,7 @@ async function init(): Promise<void> {
     if (!overrideTargets) {
       activeTargets = [...currentSettings.targets];
     }
+    scheduleRefresh();
     if (!currentSettings.enabled) {
       tooltip.hide();
     }
@@ -184,6 +202,49 @@ async function init(): Promise<void> {
     },
     true
   );
+
+  function scheduleRefresh(): void {
+    clearRefresh();
+    if (!currentSettings.enabled || !lastSelection || !tooltipVisible) return;
+    const refreshMs = Math.max(30, currentSettings.tooltip.refreshSeconds) * 1000;
+    refreshTimer = window.setTimeout(() => {
+      void convertAndRender(true);
+      scheduleRefresh();
+    }, refreshMs);
+  }
+
+  function clearRefresh(): void {
+    if (refreshTimer) {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = null;
+    }
+  }
+
+  function formatRateLabel(fetchedAt?: number, fallbackDate?: string): string | undefined {
+    if (typeof fetchedAt === 'number') {
+      const date = new Date(fetchedAt);
+      if (!Number.isNaN(date.getTime())) {
+        return date.toLocaleString(undefined, {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+    }
+    if (fallbackDate) {
+      const parsed = new Date(fallbackDate);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toLocaleDateString(undefined, {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        });
+      }
+    }
+    return fallbackDate;
+  }
 }
 
 init().catch((error) => {

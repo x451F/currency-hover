@@ -4,6 +4,7 @@ export type ConvertRequest = {
     amount: number;
     base: string;
     targets: string[];
+    forceRefresh?: boolean;
   };
 };
 
@@ -20,6 +21,7 @@ export interface ConvertResponse {
   base: string;
   conversions: Record<string, number>;
   date?: string;
+  fetchedAt?: number;
   error?: string;
   stale?: boolean;
 }

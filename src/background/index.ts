@@ -37,7 +37,7 @@ async function handleConvert(message: BackgroundRequest): Promise<ConvertRespons
     base
   );
 
-  const ratesResult = await getRates(base, false, targets);
+  const ratesResult = await getRates(base, message.payload.forceRefresh ?? false, targets);
   const conversions: Record<string, number> = {};
 
   for (const target of targets) {
@@ -55,6 +55,7 @@ async function handleConvert(message: BackgroundRequest): Promise<ConvertRespons
     base,
     conversions,
     date: ratesResult.date,
+    fetchedAt: ratesResult.fetchedAt,
     error: ratesResult.error,
     stale: ratesResult.stale
   };

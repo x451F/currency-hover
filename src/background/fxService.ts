@@ -8,6 +8,7 @@ export interface RatesResult {
   base: string;
   rates: Record<string, number>;
   date: string;
+  fetchedAt?: number;
   error?: string;
   stale?: boolean;
 }
@@ -36,7 +37,7 @@ export async function getRates(
       : false;
 
   if (!forceRefresh && cacheValid && !cacheMissing && cached) {
-    return { base, rates: cached.rates, date: cached.date };
+    return { base, rates: cached.rates, date: cached.date, fetchedAt: cached.fetchedAt };
   }
 
   let combinedRates: Record<string, number> = {};
@@ -87,7 +88,7 @@ export async function getRates(
       fetchedAt: now
     };
     await setRatesCacheEntry(entry);
-    return { base, rates: combinedRates, date: combinedDate, error: errorMessage };
+    return { base, rates: combinedRates, date: combinedDate, fetchedAt: now, error: errorMessage };
   }
 
   if (cached) {
@@ -95,6 +96,7 @@ export async function getRates(
       base,
       rates: cached.rates,
       date: cached.date,
+      fetchedAt: cached.fetchedAt,
       error: errorMessage ?? 'Unable to fetch rates.',
       stale: true
     };
@@ -104,6 +106,7 @@ export async function getRates(
     base,
     rates: {},
     date: '',
+    fetchedAt: now,
     error: errorMessage ?? 'Unable to fetch rates.'
   };
 }
