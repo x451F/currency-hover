@@ -6,22 +6,22 @@
   pointer-events: auto;
   font-family: 'Futura', 'Avenir Next', 'Gill Sans', 'Trebuchet MS', sans-serif;
   color: var(--ccx-text);
-  --ccx-bg: #fff7ee;
-  --ccx-bg-secondary: #f0f4f0;
-  --ccx-text: #1d1a16;
-  --ccx-muted: #6f665c;
-  --ccx-border: rgba(29, 26, 22, 0.15);
-  --ccx-code: #215c49;
+  --ccx-bg: #f7f8fb;
+  --ccx-bg-secondary: #eef2f6;
+  --ccx-text: #1a1f1d;
+  --ccx-muted: #5f6b66;
+  --ccx-border: rgba(26, 31, 29, 0.14);
+  --ccx-code: #1f7b6b;
   --ccx-error: #8d2d2d;
-  --ccx-shadow: rgba(27, 24, 20, 0.18);
+  --ccx-shadow: rgba(27, 33, 30, 0.12);
 }
 
 #ccx-tooltip-root[data-theme='dark'] {
-  --ccx-bg: #1c1a17;
-  --ccx-bg-secondary: #23201c;
-  --ccx-text: #f5f1ec;
-  --ccx-muted: #b0a69c;
-  --ccx-border: rgba(245, 241, 236, 0.2);
+  --ccx-bg: #1b1d1c;
+  --ccx-bg-secondary: #232826;
+  --ccx-text: #f5f7f6;
+  --ccx-muted: #a5b0aa;
+  --ccx-border: rgba(245, 247, 246, 0.18);
   --ccx-code: #78e6cc;
   --ccx-error: #ff9a9a;
   --ccx-shadow: rgba(0, 0, 0, 0.45);
@@ -29,11 +29,11 @@
 
 @media (prefers-color-scheme: dark) {
   #ccx-tooltip-root:not([data-theme]) {
-    --ccx-bg: #1c1a17;
-    --ccx-bg-secondary: #23201c;
-    --ccx-text: #f5f1ec;
-    --ccx-muted: #b0a69c;
-    --ccx-border: rgba(245, 241, 236, 0.2);
+    --ccx-bg: #1b1d1c;
+    --ccx-bg-secondary: #232826;
+    --ccx-text: #f5f7f6;
+    --ccx-muted: #a5b0aa;
+    --ccx-border: rgba(245, 247, 246, 0.18);
     --ccx-code: #78e6cc;
     --ccx-error: #ff9a9a;
     --ccx-shadow: rgba(0, 0, 0, 0.45);
@@ -145,6 +145,8 @@
 }
 
 #ccx-tooltip-root .ccx-symbol {
+  font-family: system-ui, -apple-system, "Segoe UI Symbol", "Noto Sans Symbols", "Arial Unicode MS", sans-serif;
+  line-height: 1;
   font-size: 12px;
 }
 

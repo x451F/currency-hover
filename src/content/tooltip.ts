@@ -50,7 +50,6 @@ export class TooltipController {
   private openBase = false;
   private isEditingBase = false;
   private baseEditValue = '';
-  private pointerDownInside = false;
   private lastState: TooltipState | null = null;
   private lastRect: DOMRect | null = null;
 
@@ -61,13 +60,6 @@ export class TooltipController {
     this.card.className = 'ccx-card';
     this.root.appendChild(this.card);
     document.documentElement.appendChild(this.root);
-
-    this.root.addEventListener('pointerdown', () => {
-      this.pointerDownInside = true;
-      window.setTimeout(() => {
-        this.pointerDownInside = false;
-      }, 0);
-    });
 
     this.root.addEventListener('mouseenter', () => {
       this.isHovered = true;
@@ -129,6 +121,23 @@ export class TooltipController {
     return this.root.contains(target);
   }
 
+  isEditing(): boolean {
+    return this.isEditingBase;
+  }
+
+  commitBaseEdit(): void {
+    if (!this.isEditingBase || !this.lastState) return;
+    const value = this.baseEditValue;
+    this.exitBaseEdit(false);
+    this.lastState.controls.onBaseAmountCommit(value);
+  }
+
+  cancelBaseEdit(): void {
+    if (!this.isEditingBase || !this.lastState) return;
+    this.exitBaseEdit(false);
+    this.lastState.controls.onBaseAmountCancel();
+  }
+
   private render(state: TooltipState): void {
     this.card.innerHTML = '';
 
@@ -163,16 +172,15 @@ export class TooltipController {
       });
       input.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
-          controls.onBaseAmountCommit(input.value);
-          this.exitBaseEdit(true);
+          this.baseEditValue = input.value;
+          this.commitBaseEdit();
         }
         if (event.key === 'Escape') {
-          controls.onBaseAmountCancel();
-          this.exitBaseEdit(true);
+          this.cancelBaseEdit();
         }
       });
-      input.addEventListener('blur', (event) => {
-        this.handleBaseInputBlur(event, input, controls);
+      input.addEventListener('blur', () => {
+        // Commit handled explicitly on Enter or outside click.
       });
 
       amountContainer.appendChild(input);
@@ -372,12 +380,14 @@ export class TooltipController {
   }
 
   private toggleDropdown(index: number): void {
+    if (this.isEditingBase) return;
     this.openIndex = this.openIndex === index ? null : index;
     this.openBase = false;
     this.rerender();
   }
 
   private toggleBaseDropdown(): void {
+    if (this.isEditingBase) return;
     this.openBase = !this.openBase;
     this.openIndex = null;
     this.rerender();
@@ -414,27 +424,6 @@ export class TooltipController {
     if (shouldRerender) {
       this.rerender();
     }
-  }
-
-  private handleBaseInputBlur(
-    event: FocusEvent,
-    input: HTMLInputElement,
-    controls: TooltipControls
-  ): void {
-    if (!this.isEditingBase) return;
-    if (this.pointerDownInside) return;
-    const related = event.relatedTarget;
-    if (related && related instanceof Node && this.root.contains(related)) {
-      return;
-    }
-    window.setTimeout(() => {
-      const active = document.activeElement;
-      if (active && this.root.contains(active)) {
-        return;
-      }
-      controls.onBaseAmountCommit(input.value);
-      this.exitBaseEdit(this.root.classList.contains('ccx-visible'));
-    }, 0);
   }
 
   private buildCopyButton(text: string, highlightEl: HTMLElement): HTMLButtonElement {

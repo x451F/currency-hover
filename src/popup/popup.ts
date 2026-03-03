@@ -151,6 +151,7 @@ let requestSeq = 0;
 let isProUser = false;
 let historySettings = { enabled: false, maxItems: 200 };
 let pendingHistory = false;
+let dragCode: string | null = null;
 
 const rowMap = new Map<string, { row: HTMLDivElement; input: HTMLInputElement; baseTag: HTMLSpanElement }>();
 
@@ -528,6 +529,14 @@ function renderConverter(): void {
     const row = document.createElement('div');
     row.className = 'converter-row';
     row.dataset.code = code;
+    row.draggable = true;
+
+    const dragHandle = document.createElement('button');
+    dragHandle.type = 'button';
+    dragHandle.className = 'drag-handle';
+    dragHandle.textContent = '⋮⋮';
+    dragHandle.setAttribute('aria-label', 'Reorder currency');
+    dragHandle.draggable = true;
 
     const pill = document.createElement('div');
     pill.className = 'currency-pill';
@@ -591,12 +600,58 @@ function renderConverter(): void {
     });
 
     const left = document.createElement('div');
-    left.className = 'row-left';
-    left.append(pill, baseTag);
+    left.className = 'row-left row-grab';
+    left.append(dragHandle, pill, baseTag);
 
     row.append(left, input, remove);
     converterList.appendChild(row);
     rowMap.set(code, { row, input, baseTag });
+
+    row.addEventListener('dragstart', (event) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (!target || !left.contains(target)) {
+        event.preventDefault();
+        return;
+      }
+      dragCode = code;
+      row.classList.add('dragging');
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', code);
+      }
+    });
+
+    row.addEventListener('dragend', () => {
+      dragCode = null;
+      row.classList.remove('dragging');
+      rowMap.forEach(({ row: item }) => item.classList.remove('drag-over'));
+    });
+
+    row.addEventListener('dragover', (event) => {
+      if (!dragCode || dragCode === code) return;
+      event.preventDefault();
+      row.classList.add('drag-over');
+    });
+
+    row.addEventListener('dragleave', () => {
+      row.classList.remove('drag-over');
+    });
+
+    row.addEventListener('drop', (event) => {
+      event.preventDefault();
+      row.classList.remove('drag-over');
+      if (!dragCode || dragCode === code) return;
+      const fromIndex = favorites.indexOf(dragCode);
+      const toIndex = favorites.indexOf(code);
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+      const next = reorderList(favorites, fromIndex, toIndex);
+      favorites = next;
+      const nextGroups = updateGroupsFromFavorites(favoritesGroups, favorites);
+      favoritesGroups = nextGroups;
+      void setSettings({ favorites, targets: favorites, favoritesGroups: nextGroups });
+      renderConverter();
+      renderSettings();
+    });
   });
 
   updateActiveRow();
@@ -1220,6 +1275,13 @@ function clampNumber(value: string, min: number, max: number, fallback: number):
 function clampValue(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+function reorderList<T>(list: T[], fromIndex: number, toIndex: number): T[] {
+  const next = [...list];
+  const [item] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, item);
+  return next;
 }
 
 init().catch((error) => {

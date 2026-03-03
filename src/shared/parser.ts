@@ -16,7 +16,10 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   '¥': 'JPY',
   '₴': 'UAH',
   '₹': 'INR',
-  '₩': 'KRW'
+  '₩': 'KRW',
+  '₿': 'BTC',
+  'Ξ': 'ETH',
+  '₮': 'USDT'
 };
 
 const CURRENCY_WORDS: Array<{ token: string; code: string }> = [
@@ -29,6 +32,9 @@ const CURRENCY_WORDS: Array<{ token: string; code: string }> = [
   { token: 'eur', code: 'EUR' },
   { token: 'gbp', code: 'GBP' },
   { token: 'jpy', code: 'JPY' },
+  { token: 'btc', code: 'BTC' },
+  { token: 'eth', code: 'ETH' },
+  { token: 'usdt', code: 'USDT' },
   { token: 'pln', code: 'PLN' },
   { token: 'zł', code: 'PLN' },
   { token: 'zl', code: 'PLN' },
@@ -90,6 +96,25 @@ export function extractFirstNumber(text: string): ParsedNumber | null {
   if (parsed === null) return null;
 
   return { value: parsed, token };
+}
+
+export function shouldTriggerSelection(text: string): boolean {
+  if (!text || !text.trim()) return false;
+  const parsed = extractFirstNumber(text);
+  if (!parsed) return false;
+
+  if (detectCurrencyFromText(text)) return true;
+
+  const compact = text.trim().replace(/\s+/g, '');
+  if (!compact) return false;
+  const tokenLength = parsed.token.replace(/\s+/g, '').length;
+  if (compact.length <= tokenLength + 2) return true;
+
+  const numericCount = compact.replace(/[^0-9.,+-]/g, '').length;
+  const ratio = numericCount / compact.length;
+  if (ratio >= 0.6 && compact.length <= 32) return true;
+
+  return false;
 }
 
 function parseNumberToken(token: string): number | null {

@@ -1,6 +1,6 @@
 import { SUPPORTED_CURRENCIES } from '../shared/constants';
 import { addHistoryEntry, getHistorySettings, getSettings, onSettingsChanged, setSettings } from '../shared/storage';
-import { detectCurrencyFromText, extractFirstNumber } from '../shared/parser';
+import { detectCurrencyFromText, extractFirstNumber, shouldTriggerSelection } from '../shared/parser';
 import { formatCopyValue, formatCurrencyParts, normalizedFixed } from '../shared/format';
 import { sendMessage } from '../shared/runtime';
 import { TooltipController } from './tooltip';
@@ -23,9 +23,9 @@ async function init(): Promise<void> {
   let tooltipVisible = false;
   let currentAmount = 0;
   let editStartAmount: number | null = null;
-  let inputDebounce: number | null = null;
   let historySettings = await getHistorySettings();
   let shouldLogHistory = false;
+  let suppressSelection = false;
 
   tooltip.setTheme(currentSettings.theme);
   tooltip.setOnHide(() => {
@@ -35,10 +35,6 @@ async function init(): Promise<void> {
     overrideBase = null;
     editStartAmount = null;
     shouldLogHistory = false;
-    if (inputDebounce) {
-      window.clearTimeout(inputDebounce);
-      inputDebounce = null;
-    }
   });
 
   const handleSelection = async (): Promise<void> => {
@@ -47,13 +43,11 @@ async function init(): Promise<void> {
     const selectionInfo = getSelectionInfo();
     if (!selectionInfo) return;
 
+    if (!shouldTriggerSelection(selectionInfo.text)) return;
+
     const parsed = extractFirstNumber(selectionInfo.text);
     if (!parsed) return;
 
-    if (inputDebounce) {
-      window.clearTimeout(inputDebounce);
-      inputDebounce = null;
-    }
     tooltip.resetEditing();
     lastSelection = { amount: parsed.value, rect: selectionInfo.rect };
     currentAmount = parsed.value;
@@ -73,6 +67,7 @@ async function init(): Promise<void> {
 
   const convertAndRender = async (forceRefresh = false): Promise<void> => {
     if (!lastSelection) return;
+    if (tooltip.isEditing()) return;
     const base = overrideBase ?? activeBase;
     const targets = activeTargets.length > 0 ? [...activeTargets] : [];
     const formatSettings = currentSettings.format;
@@ -114,12 +109,10 @@ async function init(): Promise<void> {
       },
       onBaseEditStart: () => {
         editStartAmount = currentAmount;
+        shouldLogHistory = false;
       },
       onBaseAmountInput: (raw: string) => {
-        const parsed = parseInput(raw);
-        if (parsed === null) return;
-        currentAmount = parsed;
-        scheduleInputConvert();
+        shouldLogHistory = false;
       },
       onBaseAmountCommit: (raw: string) => {
         const parsed = parseInput(raw);
@@ -245,7 +238,9 @@ async function init(): Promise<void> {
     activeTargets = getTargets(activeBase, activeFavorites);
     scheduleRefresh();
     if (tooltipVisible) {
-      void convertAndRender();
+      if (!tooltip.isEditing()) {
+        void convertAndRender();
+      }
     }
     if (!currentSettings.enabled) {
       tooltip.hide();
@@ -261,10 +256,20 @@ async function init(): Promise<void> {
   });
 
   document.addEventListener('mouseup', (event) => {
+    if (tooltip.isEditing()) return;
+    if (suppressSelection) {
+      suppressSelection = false;
+      return;
+    }
     if (tooltip.contains(event.target)) return;
     void handleSelection();
   });
   document.addEventListener('keyup', (event) => {
+    if (tooltip.isEditing()) return;
+    if (suppressSelection) {
+      suppressSelection = false;
+      return;
+    }
     if (event.key === 'Escape') {
       tooltip.hide();
       return;
@@ -276,6 +281,16 @@ async function init(): Promise<void> {
   document.addEventListener(
     'mousedown',
     (event) => {
+      if (tooltip.isEditing()) {
+        if (!tooltip.contains(event.target)) {
+          tooltip.commitBaseEdit();
+          suppressSelection = true;
+          window.setTimeout(() => {
+            suppressSelection = false;
+          }, 0);
+        }
+        return;
+      }
       if (!tooltip.contains(event.target)) {
         tooltip.hide();
       }
@@ -286,6 +301,7 @@ async function init(): Promise<void> {
   document.addEventListener(
     'scroll',
     (event) => {
+      if (tooltip.isEditing()) return;
       if (tooltip.contains(event.target)) return;
       tooltip.hide();
     },
@@ -297,18 +313,13 @@ async function init(): Promise<void> {
     if (!currentSettings.enabled || !lastSelection || !tooltipVisible) return;
     const refreshMs = Math.max(30, currentSettings.tooltip.refreshSeconds) * 1000;
     refreshTimer = window.setTimeout(() => {
+      if (tooltip.isEditing()) {
+        scheduleRefresh();
+        return;
+      }
       void convertAndRender(true);
       scheduleRefresh();
     }, refreshMs);
-  }
-
-  function scheduleInputConvert(): void {
-    if (inputDebounce) {
-      window.clearTimeout(inputDebounce);
-    }
-    inputDebounce = window.setTimeout(() => {
-      void convertAndRender();
-    }, 300);
   }
 
   function clearRefresh(): void {
