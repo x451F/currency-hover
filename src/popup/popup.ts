@@ -153,7 +153,10 @@ let historySettings = { enabled: false, maxItems: 200 };
 let pendingHistory = false;
 let dragCode: string | null = null;
 
-const rowMap = new Map<string, { row: HTMLDivElement; input: HTMLInputElement; baseTag: HTMLSpanElement }>();
+const rowMap = new Map<
+  string,
+  { row: HTMLDivElement; input: HTMLInputElement; baseTag: HTMLSpanElement }
+>();
 
 async function init(): Promise<void> {
   settings = await getSettings();
@@ -358,7 +361,10 @@ async function init(): Promise<void> {
     const value = copyModeSelect.value;
     const copyMode = value === 'raw' || value === 'formatted' ? value : 'default';
     const legacyMode = copyMode === 'raw' ? 'raw' : 'formatted';
-    void setSettings({ copy: { ...settings.copy, mode: copyMode }, format: { ...settings.format, copyMode: legacyMode } });
+    void setSettings({
+      copy: { ...settings.copy, mode: copyMode },
+      format: { ...settings.format, copyMode: legacyMode }
+    });
   });
 
   formatFixedSlider.addEventListener('input', () => {
@@ -474,14 +480,20 @@ async function init(): Promise<void> {
 
 function initializeFavorites(): void {
   favoritesGroups = settings.favoritesGroups ?? null;
-  if (favoritesGroups && !hasFeature(settings, 'favorites-groups') && favoritesGroups.groups.length > 1) {
+  if (
+    favoritesGroups &&
+    !hasFeature(settings, 'favorites-groups') &&
+    favoritesGroups.groups.length > 1
+  ) {
     favoritesGroups = {
       activeId: favoritesGroups.groups[0].id,
       groups: [favoritesGroups.groups[0]]
     };
     void setSettings({ favoritesGroups });
   }
-  const activeGroup = favoritesGroups?.groups?.find((group) => group.id === favoritesGroups?.activeId);
+  const activeGroup = favoritesGroups?.groups?.find(
+    (group) => group.id === favoritesGroups?.activeId
+  );
   favorites = activeGroup?.favorites?.length ? [...activeGroup.favorites] : [...settings.favorites];
   if (!favorites.length) {
     favorites = [...DEFAULT_FAVORITES];
@@ -658,7 +670,11 @@ function renderConverter(): void {
 }
 
 function updateGroupSwitcher(): void {
-  if (!favoritesGroups || !hasFeature(settings, 'favorites-groups') || favoritesGroups.groups.length <= 1) {
+  if (
+    !favoritesGroups ||
+    !hasFeature(settings, 'favorites-groups') ||
+    favoritesGroups.groups.length <= 1
+  ) {
     groupSwitcher.classList.add('hidden');
     return;
   }
@@ -855,7 +871,7 @@ function updateRatesLabel(response: ConvertResponse): void {
 
 function updateProCard(): void {
   if (isProUser) {
-    proStatus.textContent = 'Pro unlocked. Спасибо за поддержку!';
+    proStatus.textContent = 'Pro unlocked. Дякую за підтримку';
     proCodeRow.classList.add('hidden');
   } else {
     proStatus.textContent = 'Unlock Pro to enable advanced features.';
@@ -927,7 +943,11 @@ function renderGroups(): void {
     useBtn.addEventListener('click', () => {
       const next: FavoritesGroups = { ...favoritesGroups!, activeId: group.id };
       favoritesGroups = next;
-      void setSettings({ favoritesGroups: next, favorites: group.favorites, targets: group.favorites });
+      void setSettings({
+        favoritesGroups: next,
+        favorites: group.favorites,
+        targets: group.favorites
+      });
     });
 
     const renameBtn = document.createElement('button');
@@ -952,7 +972,9 @@ function renderGroups(): void {
       if (favoritesGroups!.groups.length <= 1) return;
       const nextGroups = favoritesGroups!.groups.filter((item) => item.id !== group.id);
       const activeId =
-        favoritesGroups!.activeId === group.id ? nextGroups[0]?.id ?? '' : favoritesGroups!.activeId;
+        favoritesGroups!.activeId === group.id
+          ? (nextGroups[0]?.id ?? '')
+          : favoritesGroups!.activeId;
       const next: FavoritesGroups = { activeId, groups: nextGroups };
       favoritesGroups = next;
       void setSettings({ favoritesGroups: next });
@@ -969,7 +991,10 @@ function openProSection(): void {
   proCard.scrollIntoView({ block: 'nearest' });
 }
 
-function updateGroupsFromFavorites(groups: FavoritesGroups | null, nextFavorites: string[]): FavoritesGroups {
+function updateGroupsFromFavorites(
+  groups: FavoritesGroups | null,
+  nextFavorites: string[]
+): FavoritesGroups {
   if (!groups || !groups.groups.length) {
     return {
       activeId: 'default',
