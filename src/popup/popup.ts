@@ -131,7 +131,15 @@ let debounceTimer: number | null = null;
 let requestSeq = 0;
 let historySettings = { enabled: false, maxItems: 200 };
 let pendingHistory = false;
-let dragCode: string | null = null;
+let dragState: {
+  code: string;
+  row: HTMLDivElement;
+  pointerId: number;
+  offsetY: number;
+  startX: number;
+  width: number;
+  placeholder: HTMLDivElement;
+} | null = null;
 
 const rowMap = new Map<
   string,
@@ -407,14 +415,13 @@ function renderConverter(): void {
     const row = document.createElement('div');
     row.className = 'converter-row';
     row.dataset['code'] = code;
-    row.draggable = true;
 
     const dragHandle = document.createElement('button');
     dragHandle.type = 'button';
     dragHandle.className = 'drag-handle';
     dragHandle.textContent = '⋮⋮';
     dragHandle.setAttribute('aria-label', 'Reorder currency');
-    dragHandle.draggable = true;
+    dragHandle.draggable = false;
 
     const pill = document.createElement('div');
     pill.className = 'currency-pill';
@@ -434,7 +441,7 @@ function renderConverter(): void {
     input.type = 'text';
     input.inputMode = 'decimal';
     input.placeholder = '0.00';
-    input.value = values[code] !== undefined ? formatNumber(values[code], settings.format) : '';
+    setInputDisplayValue(input, values[code]);
 
     const remove = document.createElement('button');
     remove.className = 'remove-btn';
@@ -446,6 +453,7 @@ function renderConverter(): void {
       setActiveBase(code);
       if (values[code] !== undefined) {
         editingCode = code;
+        input.classList.remove('amount-input-long', 'amount-input-xlong');
         input.value = formatEditValue(values[code]);
       }
     });
@@ -463,9 +471,9 @@ function renderConverter(): void {
         values[code] = parsed;
       }
       if (values[code] !== undefined) {
-        input.value = formatNumber(values[code], settings.format);
+        setInputDisplayValue(input, values[code]);
       } else {
-        input.value = '';
+        setInputDisplayValue(input, undefined);
       }
       editingCode = null;
     });
@@ -478,50 +486,8 @@ function renderConverter(): void {
     converterList.appendChild(row);
     rowMap.set(code, { row, input, baseTag });
 
-    row.addEventListener('dragstart', (event) => {
-      const target = event.target instanceof Node ? event.target : null;
-      if (!target || !left.contains(target)) {
-        event.preventDefault();
-        return;
-      }
-      dragCode = code;
-      row.classList.add('dragging');
-      if (event.dataTransfer) {
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('text/plain', code);
-      }
-    });
-
-    row.addEventListener('dragend', () => {
-      dragCode = null;
-      row.classList.remove('dragging');
-      rowMap.forEach(({ row: item }) => item.classList.remove('drag-over'));
-    });
-
-    row.addEventListener('dragover', (event) => {
-      if (!dragCode || dragCode === code) return;
-      event.preventDefault();
-      row.classList.add('drag-over');
-    });
-
-    row.addEventListener('dragleave', () => {
-      row.classList.remove('drag-over');
-    });
-
-    row.addEventListener('drop', (event) => {
-      event.preventDefault();
-      row.classList.remove('drag-over');
-      if (!dragCode || dragCode === code) return;
-      const fromIndex = favorites.indexOf(dragCode);
-      const toIndex = favorites.indexOf(code);
-      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
-      const next = reorderList(favorites, fromIndex, toIndex);
-      favorites = next;
-      const nextGroups = updateGroupsFromFavorites(favoritesGroups, favorites);
-      favoritesGroups = nextGroups;
-      void setSettings({ favorites, targets: favorites, favoritesGroups: nextGroups });
-      renderConverter();
-      renderSettings();
+    left.addEventListener('pointerdown', (event) => {
+      startPointerDrag(event, code, row);
     });
   });
 
@@ -622,6 +588,132 @@ function updateActiveRow(): void {
   });
 }
 
+document.addEventListener('pointermove', updatePointerDrag);
+document.addEventListener('pointerup', endPointerDrag);
+document.addEventListener('pointercancel', endPointerDrag);
+
+function startPointerDrag(event: PointerEvent, code: string, row: HTMLDivElement): void {
+  if (event.button !== 0) return;
+  const rect = row.getBoundingClientRect();
+  const placeholder = document.createElement('div');
+  placeholder.className = 'drag-placeholder';
+  placeholder.style.height = `${rect.height}px`;
+  converterList.insertBefore(placeholder, row.nextSibling);
+  dragState = {
+    code,
+    row,
+    pointerId: event.pointerId,
+    offsetY: event.clientY - rect.top,
+    startX: rect.left,
+    width: rect.width,
+    placeholder
+  };
+  row.setPointerCapture(event.pointerId);
+  row.classList.add('dragging');
+  row.style.width = `${rect.width}px`;
+  row.style.left = `${rect.left}px`;
+  row.style.top = `${rect.top}px`;
+  event.preventDefault();
+}
+
+function updatePointerDrag(event: PointerEvent): void {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const { row, offsetY, startX, width, placeholder } = dragState;
+  row.style.left = `${startX}px`;
+  row.style.top = `${event.clientY - offsetY}px`;
+  row.style.width = `${width}px`;
+
+  const targetRow = getDropTarget(row, event.clientY) ?? getEdgeDropTarget(event.clientY);
+  if (!targetRow) return;
+  const targetRect = targetRow.getBoundingClientRect();
+  const shouldInsertAfter = event.clientY > targetRect.top + targetRect.height / 2;
+  const nextSibling = shouldInsertAfter ? targetRow.nextSibling : targetRow;
+  if (nextSibling === placeholder || targetRow === placeholder) return;
+
+  animateRows(() => {
+    converterList.insertBefore(placeholder, nextSibling);
+  });
+}
+
+function endPointerDrag(event: PointerEvent): void {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const { row, pointerId, placeholder } = dragState;
+  try {
+    row.releasePointerCapture(pointerId);
+  } catch {
+    // Already released by the browser.
+  }
+  converterList.insertBefore(row, placeholder);
+  placeholder.remove();
+  row.classList.remove('dragging');
+  row.style.left = '';
+  row.style.top = '';
+  row.style.width = '';
+  row.style.transform = '';
+  dragState = null;
+  persistDraggedOrder();
+}
+
+function getDropTarget(draggedRow: HTMLDivElement, clientY: number): HTMLDivElement | null {
+  return (
+    getConverterRows().find((row) => {
+      if (row === draggedRow) return false;
+      const rect = row.getBoundingClientRect();
+      return clientY >= rect.top && clientY <= rect.bottom;
+    }) ?? null
+  );
+}
+
+function getEdgeDropTarget(clientY: number): HTMLDivElement | null {
+  const rows = getConverterRows().filter((row) => row !== dragState?.row);
+  if (!rows.length) return null;
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  if (clientY < first.getBoundingClientRect().top) return first;
+  if (clientY > last.getBoundingClientRect().bottom) return last;
+  return null;
+}
+
+function animateRows(mutator: () => void): void {
+  const rows = getConverterRows().filter((row) => row !== dragState?.row);
+  const firstTops = new Map(rows.map((row) => [row, row.getBoundingClientRect().top]));
+  mutator();
+
+  getConverterRows()
+    .filter((row) => row !== dragState?.row)
+    .forEach((row) => {
+      const firstTop = firstTops.get(row);
+      if (firstTop === undefined) return;
+      const delta = firstTop - row.getBoundingClientRect().top;
+      if (delta === 0) return;
+
+      row.style.transition = 'none';
+      row.style.transform = `translateY(${delta}px)`;
+      row.getBoundingClientRect();
+      window.requestAnimationFrame(() => {
+        row.style.transition = '';
+        row.style.transform = '';
+      });
+    });
+}
+
+function persistDraggedOrder(): void {
+  const next = getConverterRows()
+    .map((row) => row.dataset['code'])
+    .filter((code): code is string => Boolean(code));
+  if (!next.length || arraysEqual(next, favorites)) return;
+  favorites = next;
+  const nextGroups = updateGroupsFromFavorites(favoritesGroups, favorites);
+  favoritesGroups = nextGroups;
+  void setSettings({ favorites, targets: favorites, favoritesGroups: nextGroups });
+  renderSettings();
+  updateActiveRow();
+}
+
+function getConverterRows(): HTMLDivElement[] {
+  return Array.from(converterList.querySelectorAll<HTMLDivElement>('.converter-row'));
+}
+
 function handleInput(code: string, raw: string): void {
   if (isProgrammatic) return;
   setActiveBase(code);
@@ -705,9 +797,17 @@ function applyValuesToInputs(active: string): void {
   rowMap.forEach(({ input }, code) => {
     if (code === active && editingCode === active) return;
     const value = values[code];
-    input.value = value !== undefined ? formatNumber(value, settings.format) : '';
+    setInputDisplayValue(input, value);
   });
   isProgrammatic = false;
+}
+
+function setInputDisplayValue(input: HTMLInputElement, value: number | undefined): void {
+  const text = value !== undefined ? formatNumber(value, settings.format) : '';
+  input.value = text;
+  input.title = text;
+  input.classList.toggle('amount-input-long', text.length > 11);
+  input.classList.toggle('amount-input-xlong', text.length > 15);
 }
 
 function updateRatesLabel(response: ConvertResponse): void {
@@ -1098,11 +1198,9 @@ function clampValue(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.round(value)));
 }
 
-function reorderList<T>(list: T[], fromIndex: number, toIndex: number): T[] {
-  const next = [...list];
-  const [item] = next.splice(fromIndex, 1);
-  next.splice(toIndex, 0, item);
-  return next;
+function arraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
 }
 
 init().catch((error) => {
