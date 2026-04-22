@@ -12,8 +12,7 @@ import {
   onSettingsChanged,
   setSettings
 } from '../shared/storage';
-import { normalizeCurrencyList, type FavoritesGroups, type Settings } from '../shared/settings';
-import { hasFeature, isPro } from '../shared/capabilities';
+import { isSupportedCurrency, normalizeCurrencyList, type FavoritesGroups, type Settings } from '../shared/settings';
 import { applyTheme, type ThemeSetting } from '../shared/theme';
 import type { ConvertResponse, RefreshResponse } from '../background/messaging';
 
@@ -62,35 +61,17 @@ const formatCompact = document.querySelector<HTMLInputElement>('#format-compact'
 const copyModeSelect = document.querySelector<HTMLSelectElement>('#copy-mode')!;
 const formatFixedSlider = document.querySelector<HTMLInputElement>('#format-fixed-slider')!;
 const formatFixedValue = document.querySelector<HTMLSpanElement>('#format-fixed-value')!;
-const formatProBadge = document.querySelector<HTMLDivElement>('#format-pro-badge')!;
 const formatPreview = document.querySelector<HTMLSpanElement>('#format-preview')!;
 const copyDecimals = document.querySelector<HTMLInputElement>('#copy-decimals')!;
 const copyDecimalsValue = document.querySelector<HTMLSpanElement>('#copy-decimals-value')!;
 const copyIncludeCode = document.querySelector<HTMLInputElement>('#copy-include-code')!;
 const copyIncludeSymbol = document.querySelector<HTMLInputElement>('#copy-include-symbol')!;
-const copyProBadge = document.querySelector<HTMLDivElement>('#copy-pro-badge')!;
 const copyPreview = document.querySelector<HTMLSpanElement>('#copy-preview')!;
 const historyEnabledToggle = document.querySelector<HTMLInputElement>('#history-enabled')!;
 const historyMaxInput = document.querySelector<HTMLInputElement>('#history-max')!;
-const historyProBadge = document.querySelector<HTMLDivElement>('#history-pro-badge')!;
-
-const proCard = document.querySelector<HTMLDivElement>('#pro-card')!;
-const proDonateBtn = document.querySelector<HTMLButtonElement>('#pro-donate')!;
-const proEnterBtn = document.querySelector<HTMLButtonElement>('#pro-enter')!;
-const proRestoreBtn = document.querySelector<HTMLButtonElement>('#pro-restore')!;
-const proDevBtn = document.querySelector<HTMLButtonElement>('#pro-dev')!;
-const proCodeRow = document.querySelector<HTMLDivElement>('#pro-code-row')!;
-const proCodeInput = document.querySelector<HTMLInputElement>('#pro-code')!;
-const proApplyBtn = document.querySelector<HTMLButtonElement>('#pro-apply')!;
-const proStatus = document.querySelector<HTMLDivElement>('#pro-status')!;
 
 const historyList = document.querySelector<HTMLDivElement>('#history-list')!;
-const historyLocked = document.querySelector<HTMLDivElement>('#history-locked')!;
-const historyUnlockBtn = document.querySelector<HTMLButtonElement>('#history-unlock')!;
 const clearHistoryBtn = document.querySelector<HTMLButtonElement>('#clear-history')!;
-
-const supportedSet = new Set(SUPPORTED_CURRENCIES);
-const CRYPTO_CODES = new Set(['BTC', 'ETH', 'USDT', 'SOL']);
 
 const CURRENCY_NAMES: Record<string, string> = {
   USD: 'US Dollar',
@@ -143,12 +124,11 @@ let settings: Settings;
 let favorites: string[] = [];
 let favoritesGroups: FavoritesGroups | null = null;
 let activeBase = '';
-let values: Record<string, number> = {};
+const values: Record<string, number> = {};
 let editingCode: string | null = null;
 let isProgrammatic = false;
 let debounceTimer: number | null = null;
 let requestSeq = 0;
-let isProUser = false;
 let historySettings = { enabled: false, maxItems: 200 };
 let pendingHistory = false;
 let dragCode: string | null = null;
@@ -161,10 +141,6 @@ const rowMap = new Map<
 async function init(): Promise<void> {
   settings = await getSettings();
   historySettings = await getHistorySettings();
-  isProUser = isPro(settings);
-  if (isProUser && !historySettings.enabled) {
-    historySettings = await setHistorySettings({ enabled: true });
-  }
   applyTheme(document.documentElement, settings.theme);
   initializeFavorites();
   renderConverter();
@@ -173,13 +149,6 @@ async function init(): Promise<void> {
 
   onSettingsChanged((next) => {
     settings = next;
-    isProUser = isPro(settings);
-    if (isProUser && !historySettings.enabled) {
-      void setHistorySettings({ enabled: true }).then((updated) => {
-        historySettings = updated;
-        renderSettings();
-      });
-    }
     applyTheme(document.documentElement, settings.theme);
     initializeFavorites();
     renderConverter();
@@ -199,10 +168,6 @@ async function init(): Promise<void> {
   openHistoryBtn.addEventListener('click', () => switchView('history'));
   backBtn.addEventListener('click', () => switchView('converter'));
   historyBackBtn.addEventListener('click', () => switchView('converter'));
-  historyUnlockBtn.addEventListener('click', () => {
-    switchView('settings');
-    proCard.scrollIntoView({ block: 'nearest' });
-  });
 
   addCurrencyBtn.addEventListener('click', () => togglePicker(picker));
   favoritesAddBtn.addEventListener('click', () => togglePicker(favoritesPicker));
@@ -255,11 +220,6 @@ async function init(): Promise<void> {
   });
 
   groupSelect.addEventListener('change', () => {
-    if (!hasFeature(settings, 'favorites-groups')) {
-      openProSection();
-      groupSelect.value = favoritesGroups?.activeId ?? groupSelect.value;
-      return;
-    }
     if (!favoritesGroups) return;
     favoritesGroups = {
       ...favoritesGroups,
@@ -271,10 +231,6 @@ async function init(): Promise<void> {
   });
 
   groupAddBtn.addEventListener('click', () => {
-    if (!hasFeature(settings, 'favorites-groups')) {
-      openProSection();
-      return;
-    }
     const name = prompt('Group name', 'New group');
     if (!name) return;
     const id = `group-${Date.now().toString(36)}`;
@@ -296,10 +252,6 @@ async function init(): Promise<void> {
   });
 
   clearHistoryBtn.addEventListener('click', async () => {
-    if (!isProUser) {
-      openProSection();
-      return;
-    }
     const confirmed = confirm('Clear history?');
     if (!confirmed) return;
     await clearHistoryEntries();
@@ -307,34 +259,24 @@ async function init(): Promise<void> {
   });
 
   historyEnabledToggle.addEventListener('change', async () => {
-    if (!isProUser) {
-      openProSection();
-      historyEnabledToggle.checked = historySettings.enabled;
-      return;
-    }
     historySettings = await setHistorySettings({ enabled: historyEnabledToggle.checked });
   });
 
   historyMaxInput.addEventListener('change', async () => {
-    if (!isProUser) {
-      openProSection();
-      historyMaxInput.value = String(historySettings.maxItems);
-      return;
-    }
     const value = Math.max(50, Math.min(2000, Math.round(Number(historyMaxInput.value)) || 200));
     historyMaxInput.value = String(value);
     historySettings = await setHistorySettings({ maxItems: value });
   });
 
   formatMode.addEventListener('change', () => {
-    const mode = formatMode.value === 'fixed' ? 'fixed' : 'auto';
+    const mode: Settings['format']['mode'] = formatMode.value === 'fixed' ? 'fixed' : 'auto';
     const next = { ...settings.format, mode };
     void setSettings({ format: next });
     updateFormatVisibility(next.mode);
   });
 
   formatMin.addEventListener('change', () => {
-    const min = clampNumber(formatMin.value, 0, 4, settings.format.minDecimals);
+    const min = clampNumber(formatMin.value, 0, 6, settings.format.minDecimals);
     const max = clampNumber(formatMax.value, min, 6, settings.format.maxDecimals);
     formatMin.value = String(min);
     formatMax.value = String(max);
@@ -342,7 +284,7 @@ async function init(): Promise<void> {
   });
 
   formatMax.addEventListener('change', () => {
-    const min = clampNumber(formatMin.value, 0, 4, settings.format.minDecimals);
+    const min = clampNumber(formatMin.value, 0, 6, settings.format.minDecimals);
     const max = clampNumber(formatMax.value, min, 6, settings.format.maxDecimals);
     formatMin.value = String(min);
     formatMax.value = String(max);
@@ -368,12 +310,6 @@ async function init(): Promise<void> {
   });
 
   formatFixedSlider.addEventListener('input', () => {
-    if (!hasFeature(settings, 'formatting-advanced')) {
-      openProSection();
-      formatFixedSlider.value = String(settings.format.fixedDecimals);
-      formatFixedValue.textContent = String(settings.format.fixedDecimals);
-      return;
-    }
     const value = clampNumber(formatFixedSlider.value, 0, 8, settings.format.fixedDecimals);
     formatFixedSlider.value = String(value);
     formatFixedValue.textContent = String(value);
@@ -382,13 +318,6 @@ async function init(): Promise<void> {
   });
 
   formatFixedDecimals.addEventListener('change', () => {
-    if (!hasFeature(settings, 'formatting-advanced')) {
-      openProSection();
-      formatFixedDecimals.value = String(settings.format.fixedDecimals);
-      formatFixedSlider.value = String(settings.format.fixedDecimals);
-      formatFixedValue.textContent = String(settings.format.fixedDecimals);
-      return;
-    }
     const max = 8;
     const fixed = clampNumber(formatFixedDecimals.value, 0, max, settings.format.fixedDecimals);
     formatFixedDecimals.value = String(fixed);
@@ -398,12 +327,6 @@ async function init(): Promise<void> {
   });
 
   copyDecimals.addEventListener('input', () => {
-    if (!hasFeature(settings, 'copy-advanced')) {
-      openProSection();
-      copyDecimals.value = String(settings.copy.decimals);
-      copyDecimalsValue.textContent = String(settings.copy.decimals);
-      return;
-    }
     const value = clampNumber(copyDecimals.value, 0, 8, settings.copy.decimals);
     copyDecimals.value = String(value);
     copyDecimalsValue.textContent = String(value);
@@ -415,44 +338,8 @@ async function init(): Promise<void> {
   });
 
   copyIncludeSymbol.addEventListener('change', () => {
-    if (!hasFeature(settings, 'copy-advanced')) {
-      openProSection();
-      copyIncludeSymbol.checked = settings.copy.includeSymbol;
-      return;
-    }
     void setSettings({ copy: { ...settings.copy, includeSymbol: copyIncludeSymbol.checked } });
   });
-
-  proDonateBtn.addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://example.com/donate' });
-  });
-
-  proEnterBtn.addEventListener('click', () => {
-    proCodeRow.classList.toggle('hidden');
-    if (!proCodeRow.classList.contains('hidden')) {
-      proCodeInput.focus();
-    }
-  });
-
-  proRestoreBtn.addEventListener('click', () => {
-    unlockPro('manual');
-  });
-
-  proApplyBtn.addEventListener('click', () => {
-    const code = proCodeInput.value.trim();
-    if (code.length < 8) {
-      proStatus.textContent = 'Invalid code. Try again.';
-      return;
-    }
-    unlockPro('manual');
-  });
-
-  if (import.meta.env.MODE !== 'production') {
-    proDevBtn.classList.remove('hidden');
-    proDevBtn.addEventListener('click', () => {
-      unlockPro('manual');
-    });
-  }
 
   document.addEventListener('click', (event) => {
     if (!picker.contains(event.target as Node) && event.target !== addCurrencyBtn) {
@@ -480,33 +367,12 @@ async function init(): Promise<void> {
 
 function initializeFavorites(): void {
   favoritesGroups = settings.favoritesGroups ?? null;
-  if (
-    favoritesGroups &&
-    !hasFeature(settings, 'favorites-groups') &&
-    favoritesGroups.groups.length > 1
-  ) {
-    favoritesGroups = {
-      activeId: favoritesGroups.groups[0].id,
-      groups: [favoritesGroups.groups[0]]
-    };
-    void setSettings({ favoritesGroups });
-  }
   const activeGroup = favoritesGroups?.groups?.find(
     (group) => group.id === favoritesGroups?.activeId
   );
   favorites = activeGroup?.favorites?.length ? [...activeGroup.favorites] : [...settings.favorites];
   if (!favorites.length) {
     favorites = [...DEFAULT_FAVORITES];
-  }
-
-  if (!hasFeature(settings, 'crypto')) {
-    const filtered = favorites.filter((code) => !CRYPTO_CODES.has(code));
-    if (filtered.length !== favorites.length) {
-      favorites = filtered.length ? filtered : [...DEFAULT_FAVORITES];
-      const nextGroups = updateGroupsFromFavorites(favoritesGroups, favorites);
-      favoritesGroups = nextGroups;
-      void setSettings({ favorites, targets: favorites, favoritesGroups: nextGroups });
-    }
   }
 
   if (!settings.favorites.length) {
@@ -540,7 +406,7 @@ function renderConverter(): void {
   favorites.forEach((code) => {
     const row = document.createElement('div');
     row.className = 'converter-row';
-    row.dataset.code = code;
+    row.dataset['code'] = code;
     row.draggable = true;
 
     const dragHandle = document.createElement('button');
@@ -588,20 +454,13 @@ function renderConverter(): void {
     });
     input.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
-      const parsed = parseNumber(input.value);
-      if (parsed !== null) {
-        values[code] = parsed;
-        pendingHistory = true;
-        void convertFromBase(code, parsed);
-      }
+      event.preventDefault();
       input.blur();
     });
     input.addEventListener('blur', () => {
       const parsed = parseNumber(input.value);
       if (parsed !== null) {
         values[code] = parsed;
-        pendingHistory = true;
-        void convertFromBase(code, parsed);
       }
       if (values[code] !== undefined) {
         input.value = formatNumber(values[code], settings.format);
@@ -672,7 +531,6 @@ function renderConverter(): void {
 function updateGroupSwitcher(): void {
   if (
     !favoritesGroups ||
-    !hasFeature(settings, 'favorites-groups') ||
     favoritesGroups.groups.length <= 1
   ) {
     groupSwitcher.classList.add('hidden');
@@ -711,8 +569,7 @@ function renderSettings(): void {
   historyMaxInput.value = String(historySettings.maxItems);
   formatPreview.textContent = formatMoney(1234.56, 'USD', settings.format);
   copyPreview.textContent = formatCopyValue(1234.56, 'USD', settings.copy, settings.format);
-  updateProCard();
-  applyProGating();
+  applyFeatureAvailability();
   updateFormatVisibility(settings.format.mode);
 
   favoritesList.innerHTML = '';
@@ -824,9 +681,8 @@ async function convertFromBase(base: string, amount: number): Promise<void> {
 
   applyValuesToInputs(base);
   updateRatesLabel(response);
-  void setSettings({ baseCurrency: base, targets: favorites });
 
-  if (pendingHistory && hasFeature(settings, 'history') && historySettings.enabled) {
+  if (pendingHistory && historySettings.enabled) {
     pendingHistory = false;
     await addHistoryEntry(
       {
@@ -869,59 +725,28 @@ function updateRatesLabel(response: ConvertResponse): void {
   ratesUpdated.textContent = 'Rates updated: --';
 }
 
-function updateProCard(): void {
-  if (isProUser) {
-    proStatus.textContent = 'Pro unlocked. Дякую за підтримку';
-    proCodeRow.classList.add('hidden');
-  } else {
-    proStatus.textContent = 'Unlock Pro to enable advanced features.';
-  }
-}
+function applyFeatureAvailability(): void {
+  formatMax.max = '6';
+  formatMin.max = '6';
+  formatFixedSlider.max = '8';
+  formatFixedDecimals.max = '8';
+  formatFixedSlider.disabled = false;
+  formatFixedDecimals.disabled = false;
+  formatFixedDecimals.readOnly = false;
 
-function applyProGating(): void {
-  const formattingPro = hasFeature(settings, 'formatting-advanced');
-  const copyPro = hasFeature(settings, 'copy-advanced');
-  const groupsPro = hasFeature(settings, 'favorites-groups');
-  const historyPro = hasFeature(settings, 'history');
+  copyDecimals.max = '8';
+  copyDecimals.disabled = false;
+  copyDecimals.readOnly = false;
+  copyIncludeSymbol.disabled = false;
 
-  const maxAuto = formattingPro ? 8 : 4;
-  formatMax.max = String(maxAuto);
-  formatMin.max = String(formattingPro ? 6 : 4);
-  formatFixedSlider.max = String(formattingPro ? 8 : 4);
-  formatFixedDecimals.max = String(formattingPro ? 8 : 4);
-  formatFixedSlider.disabled = !formattingPro;
-  formatFixedDecimals.disabled = !formattingPro;
-  formatFixedDecimals.readOnly = !formattingPro;
-  formatProBadge.classList.toggle('hidden', formattingPro);
-
-  copyDecimals.max = String(copyPro ? 8 : 2);
-  copyDecimals.disabled = !copyPro;
-  copyDecimals.readOnly = !copyPro;
-  copyIncludeSymbol.disabled = !copyPro;
-  copyProBadge.classList.toggle('hidden', copyPro);
-
-  if (!formattingPro && settings.format.fixedDecimals > 4) {
-    void setSettings({ format: { ...settings.format, fixedDecimals: 4 } });
-  }
-  if (!copyPro && settings.copy.decimals !== 2) {
-    void setSettings({ copy: { ...settings.copy, decimals: 2 } });
-  }
-  if (!copyPro && settings.copy.includeSymbol) {
-    void setSettings({ copy: { ...settings.copy, includeSymbol: false } });
-  }
-
-  groupsSection.classList.toggle('hidden', !groupsPro);
-  groupSwitcher.classList.toggle('hidden', !groupsPro);
-
-  historyLocked.classList.toggle('hidden', historyPro);
-  clearHistoryBtn.disabled = !historyPro;
-  historyEnabledToggle.disabled = !historyPro;
-  historyMaxInput.disabled = !historyPro;
-  historyProBadge.classList.toggle('hidden', historyPro);
+  groupsSection.classList.remove('hidden');
+  clearHistoryBtn.disabled = false;
+  historyEnabledToggle.disabled = false;
+  historyMaxInput.disabled = false;
 }
 
 function renderGroups(): void {
-  if (!favoritesGroups || !hasFeature(settings, 'favorites-groups')) {
+  if (!favoritesGroups) {
     groupsList.innerHTML = '';
     return;
   }
@@ -986,11 +811,6 @@ function renderGroups(): void {
   });
 }
 
-function openProSection(): void {
-  switchView('settings');
-  proCard.scrollIntoView({ block: 'nearest' });
-}
-
 function updateGroupsFromFavorites(
   groups: FavoritesGroups | null,
   nextFavorites: string[]
@@ -1014,26 +834,7 @@ function updateGroupsFromFavorites(
   return { activeId: nextGroups[activeIndex].id, groups: nextGroups };
 }
 
-async function unlockPro(source: 'manual'): Promise<void> {
-  const next = {
-    ...settings.entitlements,
-    pro: true,
-    source,
-    updatedAt: Date.now()
-  };
-  settings = await setSettings({ entitlements: next });
-  isProUser = true;
-  historySettings = await setHistorySettings({ enabled: true });
-  renderSettings();
-}
-
 async function renderHistory(): Promise<void> {
-  if (!hasFeature(settings, 'history')) {
-    historyList.innerHTML = '';
-    historyLocked.classList.remove('hidden');
-    return;
-  }
-  historyLocked.classList.add('hidden');
   const entries = await getHistoryEntries();
   historyList.innerHTML = '';
   if (!entries.length) {
@@ -1158,11 +959,7 @@ async function copyText(text: string): Promise<void> {
   textarea.remove();
 }
 function addFavorite(code: string): void {
-  if (!supportedSet.has(code)) return;
-  if (CRYPTO_CODES.has(code) && !hasFeature(settings, 'crypto')) {
-    openProSection();
-    return;
-  }
+  if (!isSupportedCurrency(code)) return;
   if (favorites.includes(code)) return;
   favorites = normalizeCurrencyList([...favorites, code]);
   const nextGroups = updateGroupsFromFavorites(favoritesGroups, favorites);
@@ -1208,7 +1005,6 @@ function setupPicker(
     optionsContainer.innerHTML = '';
     SUPPORTED_CURRENCIES.forEach((code) => {
       if (favorites.includes(code)) return;
-      if (CRYPTO_CODES.has(code) && !hasFeature(settings, 'crypto')) return;
       const name = CURRENCY_NAMES[code] ?? code;
       const aliases = CURRENCY_ALIASES[code] ?? [];
       if (term) {

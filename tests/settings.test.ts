@@ -28,4 +28,24 @@ describe('settings migration', () => {
     const sanitized = sanitizeSettings(merged);
     expect(sanitized.copy.mode).toBe('raw');
   });
+
+  it('filters unsupported currencies and falls back from invalid base', () => {
+    const merged = mergeSettings({
+      baseCurrency: 'XXX',
+      targets: ['EUR', 'BAD', 'usd'],
+      favorites: ['NOPE', 'PLN']
+    });
+    const sanitized = sanitizeSettings(merged);
+    expect(sanitized.baseCurrency).toBe(DEFAULT_SETTINGS.baseCurrency);
+    expect(sanitized.targets).toEqual(['EUR', 'USD']);
+    expect(sanitized.favorites).toEqual(['PLN']);
+  });
+
+  it('drops legacy entitlement data', () => {
+    const merged = mergeSettings({
+      entitlements: { pro: true, source: 'manual', updatedAt: Date.now() }
+    } as Parameters<typeof mergeSettings>[0]);
+    const sanitized = sanitizeSettings(merged);
+    expect('entitlements' in sanitized).toBe(false);
+  });
 });

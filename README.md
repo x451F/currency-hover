@@ -7,7 +7,7 @@ A Manifest V3 Chrome extension that converts selected numbers into multiple curr
 - Popup controls for enable/disable, base currency, target currencies, and rate refresh.
 - Inline tooltip editing, per-row copy buttons, and currency dropdowns.
 - Favorites and theme setting (system/light/dark).
-- Pro unlock (manual for now): advanced formatting slider, history, favorites groups, and crypto support.
+- Advanced formatting, conversion history, favorites groups, and crypto support are included in the base version.
 - Frankfurter API (no API key) with cache + TTL and graceful error handling.
   - Currency detection recognizes dollar/euro/pound/yen symbols and ISO codes in the selection text.
 
@@ -45,7 +45,7 @@ src/
 ### Storage
 - `chrome.storage.sync` stores user settings.
 - `chrome.storage.local` caches FX rates per base currency with TTL.
-- `chrome.storage.local` stores conversion history + crypto cache (Pro features).
+- `chrome.storage.local` stores conversion history and crypto cache.
 
 ## Debugging Tips
 - Inspect the service worker via **chrome://extensions -> Service Worker**.

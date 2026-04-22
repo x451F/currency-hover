@@ -7,7 +7,6 @@ import { TooltipController } from './tooltip';
 import { getSelectionInfo } from './selection';
 import type { ConvertResponse } from '../background/messaging';
 import { normalizeCurrencyList, type FavoritesGroups } from '../shared/settings';
-import { hasFeature } from '../shared/capabilities';
 import { HISTORY_SETTINGS_KEY } from '../shared/constants';
 
 async function init(): Promise<void> {
@@ -20,6 +19,7 @@ async function init(): Promise<void> {
   let activeFavorites = getEffectiveFavorites(currentSettings);
   let activeTargets = getTargets(activeBase, activeFavorites);
   let refreshTimer: number | null = null;
+  let editConvertTimer: number | null = null;
   let tooltipVisible = false;
   let currentAmount = 0;
   let editStartAmount: number | null = null;
@@ -31,6 +31,7 @@ async function init(): Promise<void> {
   tooltip.setOnHide(() => {
     tooltipVisible = false;
     clearRefresh();
+    clearEditConvert();
     lastSelection = null;
     overrideBase = null;
     editStartAmount = null;
@@ -65,18 +66,18 @@ async function init(): Promise<void> {
     scheduleRefresh();
   };
 
-  const convertAndRender = async (forceRefresh = false): Promise<void> => {
+  const convertAndRender = async (
+    forceRefresh = false,
+    options: { allowEditing?: boolean; showLoading?: boolean } = {}
+  ): Promise<void> => {
     if (!lastSelection) return;
-    if (tooltip.isEditing()) return;
+    if (tooltip.isEditing() && !options.allowEditing) return;
     const base = overrideBase ?? activeBase;
     const targets = activeTargets.length > 0 ? [...activeTargets] : [];
     const formatSettings = currentSettings.format;
     const baseParts = formatCurrencyParts(currentAmount, base, formatSettings);
     const baseCopyValue = formatCopyValue(currentAmount, base, currentSettings.copy, formatSettings);
-    const allowCrypto = hasFeature(currentSettings, 'crypto');
-    const availableCurrencies = allowCrypto
-      ? [...SUPPORTED_CURRENCIES]
-      : SUPPORTED_CURRENCIES.filter((code) => !['BTC', 'ETH', 'USDT', 'SOL'].includes(code));
+    const availableCurrencies = [...SUPPORTED_CURRENCIES];
     const controls = {
       baseAmount: baseParts.amount,
       baseSymbol: baseParts.symbol,
@@ -113,8 +114,13 @@ async function init(): Promise<void> {
       },
       onBaseAmountInput: (raw: string) => {
         shouldLogHistory = false;
+        const parsed = parseInput(raw);
+        if (parsed === null) return;
+        currentAmount = parsed;
+        scheduleEditConvert();
       },
       onBaseAmountCommit: (raw: string) => {
+        clearEditConvert();
         const parsed = parseInput(raw);
         if (parsed !== null) {
           currentAmount = parsed;
@@ -127,6 +133,7 @@ async function init(): Promise<void> {
         editStartAmount = null;
       },
       onBaseAmountCancel: () => {
+        clearEditConvert();
         if (editStartAmount !== null) {
           currentAmount = editStartAmount;
           void convertAndRender();
@@ -135,13 +142,15 @@ async function init(): Promise<void> {
       }
     };
 
-    tooltip.show(
-      lastSelection.rect,
-      { type: 'loading', controls },
-      currentSettings.tooltip.autoHideSeconds,
-      currentSettings.format.compact
-    );
-    tooltipVisible = true;
+    if (options.showLoading !== false) {
+      tooltip.show(
+        lastSelection.rect,
+        { type: 'loading', controls },
+        currentSettings.tooltip.autoHideSeconds,
+        currentSettings.format.compact
+      );
+      tooltipVisible = true;
+    }
 
     const requestId = ++requestSeq;
     const requestTargets = targets.length > 0 ? targets : [base];
@@ -181,7 +190,7 @@ async function init(): Promise<void> {
       return;
     }
 
-    if (shouldLogHistory && hasFeature(currentSettings, 'history') && historySettings.enabled) {
+    if (shouldLogHistory && historySettings.enabled) {
       shouldLogHistory = false;
       await addHistoryEntry(
         {
@@ -317,8 +326,7 @@ async function init(): Promise<void> {
         scheduleRefresh();
         return;
       }
-      void convertAndRender(true);
-      scheduleRefresh();
+      void convertAndRender(true).finally(() => scheduleRefresh());
     }, refreshMs);
   }
 
@@ -326,6 +334,20 @@ async function init(): Promise<void> {
     if (refreshTimer) {
       window.clearTimeout(refreshTimer);
       refreshTimer = null;
+    }
+  }
+
+  function scheduleEditConvert(): void {
+    clearEditConvert();
+    editConvertTimer = window.setTimeout(() => {
+      void convertAndRender(false, { allowEditing: true, showLoading: false });
+    }, 250);
+  }
+
+  function clearEditConvert(): void {
+    if (editConvertTimer) {
+      window.clearTimeout(editConvertTimer);
+      editConvertTimer = null;
     }
   }
 
@@ -374,18 +396,14 @@ async function init(): Promise<void> {
       );
       if (activeGroup?.favorites?.length) {
         const normalized = normalizeCurrencyList(activeGroup.favorites);
-        return hasFeature(settings, 'crypto')
-          ? normalized
-          : normalized.filter((code) => !['BTC', 'ETH', 'USDT', 'SOL'].includes(code));
+        return normalized;
       }
     }
     const fallback =
       settings.favorites === undefined && Array.isArray(settings.targets) && settings.targets.length > 0
         ? normalizeCurrencyList(settings.targets)
         : ['EUR', 'USD', 'UAH', 'PLN'];
-    const filteredFallback = hasFeature(settings, 'crypto')
-      ? fallback
-      : fallback.filter((code) => !['BTC', 'ETH', 'USDT', 'SOL'].includes(code));
+    const filteredFallback = fallback;
     void setSettings({ favorites: filteredFallback, targets: filteredFallback });
     if (settings.favorites === undefined && Array.isArray(settings.targets)) {
       return filteredFallback;

@@ -71,26 +71,6 @@
           <div class="settings-title">Settings</div>
         </div>
 
-        <div class="section pro-card" id="pro-card">
-          <div class="section-title">Pro</div>
-          <div class="pro-content">
-            <div class="pro-text">
-              Unlock Pro with a one-time donation and get advanced formatting, history, groups, and crypto.
-            </div>
-            <div class="pro-actions">
-              <button id="pro-donate" class="ghost small" type="button">Donate</button>
-              <button id="pro-enter" class="ghost small" type="button">Enter unlock code</button>
-              <button id="pro-restore" class="ghost small hidden" type="button">Restore manually</button>
-              <button id="pro-dev" class="ghost small hidden" type="button">Dev unlock</button>
-            </div>
-            <div id="pro-code-row" class="pro-code hidden">
-              <input id="pro-code" type="text" placeholder="Enter code" autocomplete="off" />
-              <button id="pro-apply" class="ghost small" type="button">Unlock</button>
-            </div>
-            <div id="pro-status" class="helper-text"></div>
-          </div>
-        </div>
-
         <div class="section">
           <div class="section-title">Theme</div>
           <select id="theme" class="select">
@@ -168,7 +148,6 @@
               <span id="format-fixed-value">2</span>
             </div>
             <input type="number" id="format-fixed-decimals" min="0" max="8" step="1" />
-            <div id="format-pro-badge" class="pro-badge hidden">Pro</div>
           </div>
           <label class="toggle">
             <input type="checkbox" id="format-grouping" />
@@ -203,7 +182,6 @@
               <input type="checkbox" id="copy-include-symbol" />
               <span>Include symbol</span>
             </label>
-            <div id="copy-pro-badge" class="pro-badge hidden">Pro</div>
           </div>
           <div class="setting-row">
             <div class="helper-text">Copy preview: <span id="copy-preview">1234.56</span></div>
@@ -223,7 +201,6 @@
             </label>
             <label for="history-max">History max items</label>
             <input type="number" id="history-max" min="50" max="2000" step="50" />
-            <div id="history-pro-badge" class="pro-badge hidden">Pro</div>
           </div>
         </details>
       </section>
@@ -235,11 +212,6 @@
           </button>
           <div class="settings-title">History</div>
           <button id="clear-history" class="ghost small" type="button">Clear</button>
-        </div>
-        <div id="history-locked" class="section hidden">
-          <div class="section-title">Pro</div>
-          <div class="helper-text">Unlock Pro to access conversion history.</div>
-          <button id="history-unlock" class="ghost small" type="button">Unlock Pro</button>
         </div>
         <div id="history-list" class="history-list"></div>
       </section>

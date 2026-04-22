@@ -1,5 +1,6 @@
 import { getRatesCacheEntry, setRatesCacheEntry, getSettings } from '../shared/storage';
 import type { RatesCacheEntry } from '../shared/storage';
+import { SUPPORTED_CURRENCIES } from '../shared/constants';
 
 const FRANKFURTER_BASE = 'https://api.frankfurter.dev/v1/latest';
 const OPEN_ER_BASE = 'https://open.er-api.com/v6/latest';
@@ -26,7 +27,7 @@ export async function getRates(
 ): Promise<RatesResult> {
   const settings = await getSettings();
   const ttlMs = settings.cacheTtlMinutes * 60 * 1000;
-  const cached = await getRatesCacheEntry(base);
+  const cached = sanitizeCacheEntry(await getRatesCacheEntry(base));
   const now = Date.now();
   const desiredTargets = targets.filter((code) => code !== base);
 
@@ -112,12 +113,12 @@ export async function getRates(
 }
 
 async function fetchFrankfurter(base: string): Promise<ProviderResult> {
-  const url = `${FRANKFURTER_BASE}?from=${encodeURIComponent(base)}`;
+  const url = `${FRANKFURTER_BASE}?base=${encodeURIComponent(base)}`;
   try {
     const response = await fetch(url);
     if (!response.ok) {
       const statusText = response.statusText ? ` ${response.statusText}` : '';
-      throw new Error(`Frankfurter API error: ${response.status}${statusText} for ${url}`);
+      throw new Error(`Frankfurter API error: ${response.status}${statusText}`);
     }
     const data = (await response.json()) as unknown;
     const parsed = data as {
@@ -133,9 +134,9 @@ async function fetchFrankfurter(base: string): Promise<ProviderResult> {
       Array.isArray(parsed.rates) ||
       typeof parsed.date !== 'string'
     ) {
-      throw new Error(`Invalid Frankfurter response from ${url}`);
+      throw new Error('Invalid Frankfurter response.');
     }
-    return { rates: parsed.rates, date: parsed.date };
+    return { rates: sanitizeRates(parsed.rates), date: parsed.date };
   } catch (error) {
     return {
       rates: {},
@@ -151,7 +152,7 @@ async function fetchOpenEr(base: string): Promise<ProviderResult> {
     const response = await fetch(url);
     if (!response.ok) {
       const statusText = response.statusText ? ` ${response.statusText}` : '';
-      throw new Error(`Open ER API error: ${response.status}${statusText} for ${url}`);
+      throw new Error(`Open ER API error: ${response.status}${statusText}`);
     }
     const data = (await response.json()) as unknown;
     const parsed = data as {
@@ -167,10 +168,10 @@ async function fetchOpenEr(base: string): Promise<ProviderResult> {
       typeof parsed.rates !== 'object' ||
       Array.isArray(parsed.rates)
     ) {
-      throw new Error(`Invalid Open ER response from ${url}`);
+      throw new Error('Invalid Open ER response.');
     }
     const date = normalizeDate(parsed.time_last_update_utc);
-    return { rates: parsed.rates, date };
+    return { rates: sanitizeRates(parsed.rates), date };
   } catch (error) {
     return {
       rates: {},
@@ -203,4 +204,24 @@ function pickLatestDate(...dates: string[]): string {
     }
   }
   return latest;
+}
+
+function sanitizeCacheEntry(entry: RatesCacheEntry | null): RatesCacheEntry | null {
+  if (!entry || !Number.isFinite(entry.fetchedAt)) return null;
+  const rates = sanitizeRates(entry.rates);
+  if (!Object.keys(rates).length) return null;
+  return { ...entry, rates };
+}
+
+function sanitizeRates(rates: Record<string, number> | undefined): Record<string, number> {
+  if (!rates || typeof rates !== 'object' || Array.isArray(rates)) return {};
+  const supported = new Set<string>(SUPPORTED_CURRENCIES);
+  const sanitized: Record<string, number> = {};
+  for (const [code, rate] of Object.entries(rates)) {
+    const normalized = code.trim().toUpperCase();
+    if (!supported.has(normalized)) continue;
+    if (!Number.isFinite(rate) || rate <= 0) continue;
+    sanitized[normalized] = rate;
+  }
+  return sanitized;
 }

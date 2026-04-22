@@ -49,6 +49,7 @@ export class TooltipController {
   private openIndex: number | null = null;
   private openBase = false;
   private isEditingBase = false;
+  private shouldSelectBaseInput = false;
   private baseEditValue = '';
   private lastState: TooltipState | null = null;
   private lastRect: DOMRect | null = null;
@@ -84,6 +85,7 @@ export class TooltipController {
 
   resetEditing(): void {
     this.isEditingBase = false;
+    this.shouldSelectBaseInput = false;
     this.baseEditValue = '';
     this.openIndex = null;
     this.openBase = false;
@@ -110,6 +112,7 @@ export class TooltipController {
     this.openIndex = null;
     this.openBase = false;
     this.isEditingBase = false;
+    this.shouldSelectBaseInput = false;
     this.baseEditValue = '';
     if (this.onHideCallback) {
       this.onHideCallback();
@@ -186,7 +189,12 @@ export class TooltipController {
       amountContainer.appendChild(input);
       window.setTimeout(() => {
         input.focus();
-        input.select();
+        if (this.shouldSelectBaseInput) {
+          input.select();
+          this.shouldSelectBaseInput = false;
+        } else {
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
       }, 0);
     } else {
       const amount = document.createElement('button');
@@ -414,12 +422,14 @@ export class TooltipController {
 
   private startBaseEdit(value: string): void {
     this.isEditingBase = true;
+    this.shouldSelectBaseInput = true;
     this.baseEditValue = value;
     this.rerender();
   }
 
   private exitBaseEdit(shouldRerender: boolean): void {
     this.isEditingBase = false;
+    this.shouldSelectBaseInput = false;
     this.baseEditValue = '';
     if (shouldRerender) {
       this.rerender();

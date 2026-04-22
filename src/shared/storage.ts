@@ -5,8 +5,15 @@ import {
   RATES_CACHE_KEY,
   SETTINGS_KEY
 } from './constants';
-import type { Settings } from './settings';
-import { DEFAULT_SETTINGS, mergeSettings, sanitizeSettings } from './settings';
+import type { CopySettings, FormatSettings, Settings, TooltipSettings } from './settings';
+import {
+  DEFAULT_SETTINGS,
+  isSupportedCurrency,
+  mergeSettings,
+  normalizeCurrencyCode,
+  normalizeCurrencyList,
+  sanitizeSettings
+} from './settings';
 
 export interface RatesCacheEntry {
   base: string;
@@ -36,6 +43,12 @@ export interface HistorySettings {
   maxItems: number;
 }
 
+export type SettingsPatch = Omit<Partial<Settings>, 'tooltip' | 'format' | 'copy'> & {
+  tooltip?: Partial<TooltipSettings>;
+  format?: Partial<FormatSettings>;
+  copy?: Partial<CopySettings>;
+};
+
 const DEFAULT_HISTORY_SETTINGS: HistorySettings = {
   enabled: false,
   maxItems: 200
@@ -47,7 +60,7 @@ export async function getSettings(): Promise<Settings> {
   return sanitizeSettings(merged);
 }
 
-export async function setSettings(patch: Partial<Settings>): Promise<Settings> {
+export async function setSettings(patch: SettingsPatch): Promise<Settings> {
   const current = await getSettings();
   const next = sanitizeSettings({
     ...current,
@@ -126,12 +139,15 @@ export async function clearCryptoCache(): Promise<void> {
 
 export async function getHistoryEntries(): Promise<HistoryEntry[]> {
   const stored = await chrome.storage.local.get(HISTORY_KEY);
-  return (stored[HISTORY_KEY] as HistoryEntry[] | undefined) ?? [];
+  const entries = Array.isArray(stored[HISTORY_KEY]) ? (stored[HISTORY_KEY] as unknown[]) : [];
+  return entries.map(sanitizeHistoryEntry).filter((entry): entry is HistoryEntry => Boolean(entry));
 }
 
 export async function addHistoryEntry(entry: HistoryEntry, maxItems: number): Promise<void> {
+  const sanitizedEntry = sanitizeHistoryEntry(entry);
+  if (!sanitizedEntry) return;
   const history = await getHistoryEntries();
-  history.unshift(entry);
+  history.unshift(sanitizedEntry);
   if (history.length > maxItems) {
     history.length = maxItems;
   }
@@ -161,4 +177,36 @@ function sanitizeHistorySettings(settings: HistorySettings): HistorySettings {
     ? Math.max(50, Math.min(2000, Math.round(settings.maxItems)))
     : DEFAULT_HISTORY_SETTINGS.maxItems;
   return { enabled, maxItems };
+}
+
+function sanitizeHistoryEntry(entry: unknown): HistoryEntry | null {
+  if (!entry || typeof entry !== 'object') return null;
+  const raw = entry as Partial<HistoryEntry>;
+  if (!Number.isFinite(raw.ts) || !Number.isFinite(raw.amount)) return null;
+  if (typeof raw.base !== 'string' || !isSupportedCurrency(raw.base)) return null;
+  const conversions = sanitizeConversions(raw.conversions);
+  if (!Object.keys(conversions).length) return null;
+  const favoritesSnapshot = Array.isArray(raw.favoritesSnapshot)
+    ? normalizeCurrencyList(raw.favoritesSnapshot.filter((code): code is string => typeof code === 'string'))
+    : [];
+  const ts = typeof raw.ts === 'number' ? raw.ts : 0;
+  const amount = typeof raw.amount === 'number' ? raw.amount : 0;
+  return {
+    ts: Math.max(0, Math.round(ts)),
+    base: normalizeCurrencyCode(raw.base),
+    amount,
+    favoritesSnapshot,
+    conversions,
+    provider: typeof raw.provider === 'string' ? raw.provider : undefined
+  };
+}
+
+function sanitizeConversions(conversions: unknown): Record<string, number> {
+  if (!conversions || typeof conversions !== 'object' || Array.isArray(conversions)) return {};
+  const sanitized: Record<string, number> = {};
+  for (const [code, value] of Object.entries(conversions)) {
+    if (!isSupportedCurrency(code) || !Number.isFinite(value)) continue;
+    sanitized[normalizeCurrencyCode(code)] = value;
+  }
+  return sanitized;
 }

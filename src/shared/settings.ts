@@ -27,12 +27,6 @@ export interface CopySettings {
   mode: 'default' | 'raw' | 'formatted';
 }
 
-export interface Entitlements {
-  pro: boolean;
-  source: 'none' | 'manual';
-  updatedAt: number;
-}
-
 export interface FavoritesGroup {
   id: string;
   name: string;
@@ -56,7 +50,6 @@ export interface Settings {
   copy: CopySettings;
   detectCurrency: boolean;
   theme: ThemeSetting;
-  entitlements: Entitlements;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -97,15 +90,15 @@ export const DEFAULT_SETTINGS: Settings = {
     mode: 'default'
   },
   detectCurrency: false,
-  theme: 'system',
-  entitlements: {
-    pro: false,
-    source: 'none',
-    updatedAt: 0
-  }
+  theme: 'system'
 };
 
 export const CURRENCY_HINTS = SUPPORTED_CURRENCIES as readonly CurrencyCode[];
+const SUPPORTED_SET = new Set<string>(SUPPORTED_CURRENCIES);
+
+export function isSupportedCurrency(value: string): boolean {
+  return SUPPORTED_SET.has(normalizeCurrencyCode(value));
+}
 
 export function normalizeCurrencyCode(value: string): CurrencyCode {
   return value.trim().toUpperCase();
@@ -116,7 +109,7 @@ export function normalizeCurrencyList(values: string[]): CurrencyCode[] {
   const result: CurrencyCode[] = [];
   values
     .map(normalizeCurrencyCode)
-    .filter((code) => code.length > 0)
+    .filter((code) => SUPPORTED_SET.has(code))
     .forEach((code) => {
       if (!seen.has(code)) {
         seen.add(code);
@@ -146,10 +139,10 @@ export function mergeSettings(partial: Partial<Settings> | undefined | null): Se
   if (legacyCopyMode && partial.copy?.mode === undefined) {
     copy.mode = legacyCopyMode === 'raw' ? 'raw' : 'formatted';
   }
-  const entitlements: Entitlements = {
-    ...DEFAULT_SETTINGS.entitlements,
-    ...(partial.entitlements ?? {})
+  const partialSettings = { ...partial } as Partial<Settings> & {
+    entitlements?: unknown;
   };
+  delete partialSettings.entitlements;
   const favoritesGroups = buildFavoritesGroups(partial);
   const normalizedTargets = partial.targets
     ? normalizeCurrencyList(partial.targets)
@@ -161,7 +154,7 @@ export function mergeSettings(partial: Partial<Settings> | undefined | null): Se
       : DEFAULT_SETTINGS.favorites;
   return {
     ...DEFAULT_SETTINGS,
-    ...partial,
+    ...partialSettings,
     baseCurrency: partial.baseCurrency
       ? normalizeCurrencyCode(partial.baseCurrency)
       : DEFAULT_SETTINGS.baseCurrency,
@@ -174,13 +167,13 @@ export function mergeSettings(partial: Partial<Settings> | undefined | null): Se
     },
     format,
     copy,
-    theme: normalizeTheme(partial.theme),
-    entitlements
+    theme: normalizeTheme(partial.theme)
   };
 }
 
 export function sanitizeSettings(settings: Settings): Settings {
-  const base = normalizeCurrencyCode(settings.baseCurrency);
+  const normalizedBase = normalizeCurrencyCode(settings.baseCurrency);
+  const base = SUPPORTED_SET.has(normalizedBase) ? normalizedBase : DEFAULT_SETTINGS.baseCurrency;
   const targets = normalizeCurrencyList(settings.targets);
   const favorites = normalizeCurrencyList(settings.favorites);
   const favoritesGroups = sanitizeFavoritesGroups(settings.favoritesGroups, favorites);
@@ -195,8 +188,8 @@ export function sanitizeSettings(settings: Settings): Settings {
     : DEFAULT_SETTINGS.tooltip.refreshSeconds;
   const rawFormat = settings.format ?? DEFAULT_SETTINGS.format;
   const mode = rawFormat.mode === 'fixed' ? 'fixed' : 'auto';
-  const fixedDecimals = clampDecimals(rawFormat.fixedDecimals, 0, 6, DEFAULT_SETTINGS.format.fixedDecimals);
-  const minDecimals = clampDecimals(rawFormat.minDecimals, 0, 4, DEFAULT_SETTINGS.format.minDecimals);
+  const fixedDecimals = clampDecimals(rawFormat.fixedDecimals, 0, 8, DEFAULT_SETTINGS.format.fixedDecimals);
+  const minDecimals = clampDecimals(rawFormat.minDecimals, 0, 6, DEFAULT_SETTINGS.format.minDecimals);
   const maxDecimals = clampDecimals(
     rawFormat.maxDecimals,
     minDecimals,
@@ -228,13 +221,10 @@ export function sanitizeSettings(settings: Settings): Settings {
     includeSymbol: Boolean(rawCopy.includeSymbol),
     mode: rawCopy.mode === 'raw' || rawCopy.mode === 'formatted' ? rawCopy.mode : 'default'
   };
-  const entitlements: Entitlements = {
-    pro: Boolean(settings.entitlements?.pro),
-    source: settings.entitlements?.source === 'manual' ? 'manual' : 'none',
-    updatedAt: Number.isFinite(settings.entitlements?.updatedAt)
-      ? Math.max(0, Math.round(settings.entitlements.updatedAt))
-      : 0
+  const settingsWithoutLegacy = { ...settings } as Settings & {
+    entitlements?: unknown;
   };
+  delete settingsWithoutLegacy.entitlements;
   let activeFavorites = getActiveFavorites(favoritesGroups, favorites);
   let syncedGroups = favoritesGroups;
   if (favorites.length && !arraysEqual(activeFavorites, favorites)) {
@@ -243,7 +233,7 @@ export function sanitizeSettings(settings: Settings): Settings {
   }
 
   return {
-    ...settings,
+    ...settingsWithoutLegacy,
     baseCurrency: base,
     targets: targets.length ? targets : activeFavorites.length ? activeFavorites : DEFAULT_SETTINGS.targets,
     favorites: activeFavorites.length ? activeFavorites : DEFAULT_SETTINGS.favorites,
@@ -257,8 +247,7 @@ export function sanitizeSettings(settings: Settings): Settings {
     },
     format,
     copy,
-    theme: normalizeTheme(settings.theme),
-    entitlements
+    theme: normalizeTheme(settings.theme)
   };
 }
 

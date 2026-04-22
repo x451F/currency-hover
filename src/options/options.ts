@@ -3,7 +3,6 @@ import { getCurrencyLabel } from '../shared/currencyMeta';
 import { getSettings, onSettingsChanged, setSettings } from '../shared/storage';
 import { normalizeCurrencyCode, normalizeCurrencyList } from '../shared/settings';
 import { applyTheme, type ThemeSetting } from '../shared/theme';
-import { hasFeature } from '../shared/capabilities';
 
 const enabledEl = document.querySelector<HTMLInputElement>('#enabled')!;
 const baseEl = document.querySelector<HTMLSelectElement>('#base')!;
@@ -19,9 +18,7 @@ const ttlEl = document.querySelector<HTMLInputElement>('#ttl')!;
 const themeEl = document.querySelector<HTMLSelectElement>('#theme')!;
 const statusEl = document.querySelector<HTMLDivElement>('#status')!;
 
-let currentBase = 'USD';
 let currentFavorites: string[] = [];
-const CRYPTO_CODES = new Set(['BTC', 'ETH', 'USDT', 'SOL']);
 
 function populateOptions(): void {
   for (const code of SUPPORTED_CURRENCIES) {
@@ -56,7 +53,6 @@ function getSelectedValues(select: HTMLSelectElement): string[] {
 
 function applySettings(settings: Awaited<ReturnType<typeof getSettings>>): void {
   enabledEl.checked = settings.enabled;
-  currentBase = settings.baseCurrency;
   currentFavorites = settings.favorites;
   baseEl.value = settings.baseCurrency;
   Array.from(targetsEl.options).forEach((option) => {
@@ -70,7 +66,6 @@ function applySettings(settings: Awaited<ReturnType<typeof getSettings>>): void 
   themeEl.value = settings.theme;
   applyTheme(document.documentElement, settings.theme);
   renderFavorites();
-  applyCryptoGating(settings);
 }
 
 async function init(): Promise<void> {
@@ -88,7 +83,6 @@ async function init(): Promise<void> {
 
   baseEl.addEventListener('change', async () => {
     const base = baseEl.value;
-    currentBase = base;
     const targets = normalizeCurrencyList(getSelectedValues(targetsEl));
     await setSettings({ baseCurrency: base, targets });
     setStatus('Base currency updated.');
@@ -203,32 +197,6 @@ function renderFavorites(): void {
     row.append(label, actions);
     favoritesListEl.appendChild(row);
   });
-}
-
-function applyCryptoGating(settings: Awaited<ReturnType<typeof getSettings>>): void {
-  const allowCrypto = hasFeature(settings, 'crypto');
-  Array.from(baseEl.options).forEach((option) => {
-    if (CRYPTO_CODES.has(option.value)) {
-      option.disabled = !allowCrypto;
-    }
-  });
-  Array.from(targetsEl.options).forEach((option) => {
-    if (CRYPTO_CODES.has(option.value)) {
-      option.disabled = !allowCrypto;
-      if (!allowCrypto && option.selected) {
-        option.selected = false;
-      }
-    }
-  });
-  Array.from(favoriteAddEl.options).forEach((option) => {
-    if (CRYPTO_CODES.has(option.value)) {
-      option.disabled = !allowCrypto;
-    }
-  });
-  if (!allowCrypto && CRYPTO_CODES.has(currentBase)) {
-    baseEl.value = 'USD';
-    void setSettings({ baseCurrency: 'USD' });
-  }
 }
 
 async function moveFavorite(index: number, delta: number): Promise<void> {

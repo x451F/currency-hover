@@ -7,7 +7,7 @@ export interface ParsedNumber {
   token: string;
 }
 
-const SUPPORTED_SET = new Set(SUPPORTED_CURRENCIES);
+const SUPPORTED_SET = new Set<string>(SUPPORTED_CURRENCIES);
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   '$': 'USD',

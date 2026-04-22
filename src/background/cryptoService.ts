@@ -14,6 +14,7 @@ export interface CryptoRatesResult {
   rates: Record<string, number>;
   fetchedAt: number;
   error?: string;
+  stale?: boolean;
 }
 
 export function isCryptoCurrency(code: string): boolean {
@@ -38,26 +39,41 @@ export async function getCryptoRates(forceRefresh = false): Promise<CryptoRatesR
     const response = await fetch(url);
     if (!response.ok) {
       const statusText = response.statusText ? ` ${response.statusText}` : '';
-      throw new Error(`Crypto API error: ${response.status}${statusText} for ${url}`);
+      const message =
+        response.status === 429
+          ? 'Crypto rates are temporarily rate limited.'
+          : `Crypto API error: ${response.status}${statusText}`;
+      throw new Error(message);
     }
-    const data = (await response.json()) as Record<string, { usd?: number }>;
+    const data = (await response.json()) as unknown;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('Invalid crypto response.');
+    }
     const rates: Record<string, number> = {};
     for (const [code, id] of Object.entries(CRYPTO_ASSETS)) {
-      const usd = data?.[id]?.usd;
-      if (typeof usd === 'number') {
+      const entry = (data as Record<string, { usd?: unknown }>)[id];
+      const usd = entry?.usd;
+      if (typeof usd === 'number' && Number.isFinite(usd) && usd > 0) {
         rates[code] = usd;
       }
     }
     if (!Object.keys(rates).length) {
-      throw new Error(`Invalid crypto response from ${url}`);
+      throw new Error('Invalid crypto response.');
     }
     const entry = { rates, fetchedAt: now };
     await setCryptoCache(entry);
     return entry;
   } catch (error) {
+    if (cached && Object.keys(cached.rates).length) {
+      return {
+        rates: cached.rates,
+        fetchedAt: cached.fetchedAt,
+        stale: true
+      };
+    }
     return {
-      rates: cached?.rates ?? {},
-      fetchedAt: cached?.fetchedAt ?? now,
+      rates: {},
+      fetchedAt: now,
       error: error instanceof Error ? error.message : 'Unable to fetch crypto rates.'
     };
   }
