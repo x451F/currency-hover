@@ -1,74 +1,181 @@
-# Currency Hover Extension
+# Currency Hover
 
-A Manifest V3 Chrome extension that converts selected numbers into multiple currencies with a lightweight tooltip.
+Currency Hover is a lightweight Chrome extension that converts currency values directly on the page.
+
+Select a price, amount, or currency-like text and get a small tooltip with converted values — without opening a new tab or using a separate converter.
+
+Built with TypeScript, Vite, and Chrome Extension Manifest V3.
+
+---
+
+## Demo
+
+![Currency Hover demo](./docs/demo.gif)
+
+Quick flow: select an amount on a webpage → detect the currency → show converted values in a tooltip.
+
+---
+
+## Screenshots
+
+| Tooltip | Popup |
+|---|---|
+| ![Tooltip preview](./docs/tooltip.png) | ![Popup preview](./docs/popup.png) |
+
+---
+
+## Overview
+
+I built Currency Hover to make quick currency conversion less annoying while reading websites, job posts, product pages, or travel-related content.
+
+The idea is simple: instead of copying a price, opening a converter, pasting the value, and choosing currencies manually, the extension shows a small conversion tooltip directly on the current page.
+
+The project is also a practical browser-extension exercise: content scripts, background service workers, Chrome storage, runtime messaging, local caching, and tested parsing logic.
+
+---
 
 ## Features
-- Highlight a number on any webpage to see conversions near your selection.
-- Popup controls for enable/disable, base currency, target currencies, and rate refresh.
-- Inline tooltip editing, per-row copy buttons, and currency dropdowns.
-- Favorites and theme setting (system/light/dark).
-- Advanced formatting, conversion history, favorites groups, and crypto support are included in the base version.
-- Frankfurter API (no API key) with cache + TTL and graceful error handling.
-  - Currency detection recognizes dollar/euro/pound/yen symbols and ISO codes in the selection text.
 
-## Setup
-```bash
-pnpm i
-pnpm build
-```
+- Convert selected numbers or currency-like text directly on the page
+- Detect common currency symbols and ISO currency codes
+- Show converted values in a lightweight floating tooltip
+- Copy converted values from the tooltip
+- Configure base currency and target currencies from the popup
+- Enable or disable the extension from the popup
+- Cache exchange rates locally to reduce unnecessary API calls
+- Refresh exchange rates manually when needed
+- Support system, light, and dark themes
+- Keep parsing and formatting logic covered with tests
 
-Load unpacked:
-1. Open `chrome://extensions`.
-2. Enable **Developer mode**.
-3. Click **Load unpacked** and select the `dist` folder.
+---
 
-## Dev Workflow
-- `pnpm dev` builds in watch mode to `dist`.
-- `pnpm lint` runs ESLint.
-- `pnpm test` runs parser unit tests.
+## Tech Stack
 
-## Architecture Overview
-```
+- TypeScript
+- Vite
+- Chrome Extension Manifest V3
+- Chrome Storage API
+- Chrome Runtime Messaging
+- Vitest
+- ESLint
+- Prettier
+
+---
+
+## How It Works
+
+User selects text on a webpage
+        ↓
+Content script reads and parses the selection
+        ↓
+A conversion request is sent to the background service worker
+        ↓
+The background script loads cached or fresh exchange rates
+        ↓
+Converted values are returned to the content script
+        ↓
+A tooltip is rendered near the selected text
+
+---
+
+## Project Structure
+
 src/
-  background/   Service worker + rate fetching/caching
-  content/      Selection handling + tooltip rendering
-  shared/       Types, settings, storage, parsing, formatting
-  popup/        Popup UI
-  options/      Options page UI
-```
+  background/   Service worker, exchange-rate loading, caching, message handling
+  content/      Text selection handling and tooltip rendering
+  popup/        Popup UI and user settings
+  options/      Options page
+  shared/       Shared types, parsing, formatting, and storage helpers
 
-### Data Flow
-- Content script detects selection, parses first number, and sends `CONVERT` to the background.
-- Background retrieves cached rates (or fetches new ones), computes conversions, and replies.
-- Tooltip renders results and auto-hides (or hides on ESC/click/scroll).
+public/
+  icons/        Extension icons
 
-### Storage
-- `chrome.storage.sync` stores user settings.
-- `chrome.storage.local` caches FX rates per base currency with TTL.
-- `chrome.storage.local` stores conversion history and crypto cache.
+docs/
+  demo.gif      Short extension demo
+  tooltip.png   Tooltip screenshot
+  popup.png     Popup screenshot
 
-## Debugging Tips
-- Inspect the service worker via **chrome://extensions -> Service Worker**.
-- Use **Inspect popup** for the popup UI.
-- Use DevTools on any tab to inspect the content script.
+---
 
-## Notes on MV3
-- Service worker is an ES module (`background.js`).
-- Content script is built as a classic bundle (`content.js`) for MV3 compatibility.
-- Rates are fetched from Frankfurter/Open ER, with optional crypto pricing from CoinGecko.
+## Getting Started
 
-## Icons
-Placeholder PNG icons are provided in `public/icons/` (replace with real artwork):
-- `icon16.png`
-- `icon32.png`
-- `icon48.png`
-- `icon128.png`
+### Requirements
 
-## Build Output
-`pnpm build` outputs:
-- `dist/manifest.json`
-- `dist/background.js`
-- `dist/content.js`
-- `dist/popup.html`
-- `dist/options.html`
-- `dist/content.css`
+- Node.js 20+
+- pnpm
+- Chromium-based browser
+
+### Install dependencies
+
+pnpm install
+
+### Build the extension
+
+pnpm build
+
+The production build will be generated in the dist/ directory.
+
+---
+
+## Load in Chrome
+
+1. Open chrome://extensions
+2. Enable Developer mode
+3. Click Load unpacked
+4. Select the dist folder
+5. Open any webpage
+6. Select a price or currency amount and test the tooltip
+
+---
+
+## Development
+
+Run the development build:
+
+pnpm dev
+
+Run tests:
+
+pnpm test
+
+Run linting:
+
+pnpm lint
+
+---
+
+## Engineering Notes
+
+This project is intentionally small, but it touches several real browser-extension concerns:
+
+- reading selected text from arbitrary webpages;
+- rendering UI from a content script without breaking the page;
+- keeping extension logic split between content, background, popup, and shared modules;
+- communicating between extension contexts through Chrome runtime messaging;
+- caching external exchange-rate data locally;
+- storing user preferences with Chrome Storage;
+- testing parsing and formatting logic separately from UI code.
+
+The main focus was to keep the extension simple, usable, and structured enough to grow without turning into one large content script.
+
+---
+
+## Current Status
+
+Currency Hover is a working prototype focused on the core flow:
+
+select amount → detect value/currency → convert → show tooltip
+
+Planned improvements:
+
+- improve currency detection for edge cases;
+- polish the popup UI;
+- add a better onboarding screen after installation;
+- add optional conversion history;
+- prepare packaging for Chrome Web Store submission.
+
+---
+
+## License
+
+MIT
