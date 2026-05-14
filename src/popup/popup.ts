@@ -1,5 +1,5 @@
 import { HISTORY_SETTINGS_KEY, SUPPORTED_CURRENCIES } from '../shared/constants';
-import { getCurrencyFlag } from '../shared/currencyMeta';
+import { renderCurrencyIcon } from '../shared/currencyIcon';
 import { formatCopyValue, formatMoney, formatNumber, normalizedFixed } from '../shared/format';
 import { sendMessage } from '../shared/runtime';
 import {
@@ -464,7 +464,8 @@ function renderConverter(): void {
     pill.setAttribute('aria-label', `Change ${code}`);
     pill.title = `Change ${code}`;
     const flag = document.createElement('span');
-    flag.textContent = getCurrencyFlag(code);
+    flag.className = 'currency-mark';
+    renderCurrencyIcon(flag, code);
     const label = document.createElement('span');
     label.className = 'code';
     label.textContent = code;
@@ -622,7 +623,10 @@ function renderSettings(): void {
     item.className = 'fav-item';
 
     const label = document.createElement('div');
-    label.textContent = `${getCurrencyFlag(code)} ${code}`;
+    const icon = document.createElement('span');
+    icon.className = 'currency-mark';
+    renderCurrencyIcon(icon, code);
+    label.append(icon, document.createTextNode(` ${code}`));
 
     const actions = document.createElement('div');
     actions.className = 'fav-actions';
@@ -1361,7 +1365,14 @@ function renderCurrencyOptions(
     if (code === includeFavorite) {
       option.classList.add('picker-option-current');
     }
-    option.innerHTML = `<span>${getCurrencyFlag(code)} ${code}</span><span>${name}</span>`;
+    const optionLabel = document.createElement('span');
+    const icon = document.createElement('span');
+    icon.className = 'currency-mark';
+    renderCurrencyIcon(icon, code);
+    optionLabel.append(icon, document.createTextNode(` ${code}`));
+    const optionName = document.createElement('span');
+    optionName.textContent = name;
+    option.append(optionLabel, optionName);
     option.addEventListener('click', () => onSelect(code));
     optionsContainer.appendChild(option);
   });

@@ -1,3 +1,43 @@
+@font-face {
+  font-family: 'Jost';
+  src: url('/fonts/jost/jost-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Jost';
+  src: url('/fonts/jost/jost-latin-500-normal.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Jost';
+  src: url('/fonts/jost/jost-latin-600-normal.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Jost';
+  src: url('/fonts/jost/jost-latin-700-normal.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Jost';
+  src: url('/fonts/jost/jost-latin-800-normal.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark light;
   --bg: #0f1110;
@@ -55,7 +95,7 @@
 
 body {
   margin: 0;
-  font-family: "Futura", "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+  font-family: 'Jost', 'Futura', 'Avenir Next', 'Gill Sans', sans-serif;
   background: var(--bg);
   color: var(--text);
 }
@@ -102,6 +142,16 @@ body {
   align-items: center;
   justify-content: center;
   transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+}
+
+.icon-btn svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .icon-btn:hover {
@@ -248,6 +298,28 @@ body {
 .currency-pill .code {
   color: var(--accent);
   letter-spacing: 0.3px;
+}
+
+.currency-mark {
+  width: 16px;
+  height: 12px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.currency-marker-icon {
+  width: auto;
+  min-width: 14px;
+  color: var(--text);
+  font-weight: 700;
 }
 
 .row-left {
@@ -451,6 +523,12 @@ body {
   color: var(--text);
   cursor: pointer;
   font-size: 12px;
+}
+
+.picker-option span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .picker-option:hover {

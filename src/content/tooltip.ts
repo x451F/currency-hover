@@ -1,4 +1,4 @@
-import { getCurrencyFlag } from '../shared/currencyMeta';
+import { renderCurrencyIcon } from '../shared/currencyIcon';
 import { applyTheme, type ThemeSetting } from '../shared/theme';
 
 const COPY_SVG =
@@ -562,7 +562,7 @@ export class TooltipController {
 
         const flag = document.createElement('span');
         flag.className = 'ccx-flag';
-        flag.textContent = getCurrencyFlag(code);
+        renderCurrencyIcon(flag, code);
 
         const label = document.createElement('span');
         label.className = 'ccx-code';

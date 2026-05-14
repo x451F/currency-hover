@@ -1,27 +1,30 @@
-export const CURRENCY_FLAGS: Record<string, string> = {
-  USD: '🇺🇸',
-  EUR: '🇪🇺',
-  GBP: '🇬🇧',
-  JPY: '🇯🇵',
-  CAD: '🇨🇦',
-  AUD: '🇦🇺',
-  CHF: '🇨🇭',
-  CNY: '🇨🇳',
-  SEK: '🇸🇪',
-  NZD: '🇳🇿',
-  NOK: '🇳🇴',
-  DKK: '🇩🇰',
-  PLN: '🇵🇱',
-  UAH: '🇺🇦',
-  CZK: '🇨🇿',
-  HUF: '🇭🇺',
-  BRL: '🇧🇷',
-  MXN: '🇲🇽',
-  INR: '🇮🇳',
-  KRW: '🇰🇷',
-  SGD: '🇸🇬',
-  HKD: '🇭🇰',
-  ZAR: '🇿🇦',
+export const CURRENCY_FLAG_CODES: Record<string, string> = {
+  USD: 'us',
+  EUR: 'eu',
+  GBP: 'gb',
+  JPY: 'jp',
+  CAD: 'ca',
+  AUD: 'au',
+  CHF: 'ch',
+  CNY: 'cn',
+  SEK: 'se',
+  NZD: 'nz',
+  NOK: 'no',
+  DKK: 'dk',
+  PLN: 'pl',
+  UAH: 'ua',
+  CZK: 'cz',
+  HUF: 'hu',
+  BRL: 'br',
+  MXN: 'mx',
+  INR: 'in',
+  KRW: 'kr',
+  SGD: 'sg',
+  HKD: 'hk',
+  ZAR: 'za'
+};
+
+export const CURRENCY_MARKERS: Record<string, string> = {
   BTC: '₿',
   ETH: 'Ξ',
   USDT: '₮',
@@ -58,8 +61,12 @@ export const CURRENCY_SYMBOLS: Record<string, string> = {
   SOL: '◎'
 };
 
-export function getCurrencyFlag(code: string): string {
-  return CURRENCY_FLAGS[code] ?? '';
+export function getCurrencyFlagCode(code: string): string | null {
+  return CURRENCY_FLAG_CODES[code] ?? null;
+}
+
+export function getCurrencyMarker(code: string): string {
+  return CURRENCY_MARKERS[code] ?? '';
 }
 
 export function getCurrencySymbol(code: string): string {
@@ -67,6 +74,6 @@ export function getCurrencySymbol(code: string): string {
 }
 
 export function getCurrencyLabel(code: string): string {
-  const flag = getCurrencyFlag(code);
-  return flag ? `${flag} ${code}` : code;
+  const marker = getCurrencyMarker(code);
+  return marker ? `${marker} ${code}` : code;
 }

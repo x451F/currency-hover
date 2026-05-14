@@ -1,3 +1,27 @@
+@font-face {
+  font-family: 'Jost';
+  src: url('/fonts/jost/jost-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Jost';
+  src: url('/fonts/jost/jost-latin-600-normal.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Jost';
+  src: url('/fonts/jost/jost-latin-700-normal.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light dark;
   --bg: #f3efe6;
@@ -40,7 +64,7 @@
 
 body {
   margin: 0;
-  font-family: "Futura", "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+  font-family: 'Jost', 'Futura', 'Avenir Next', 'Gill Sans', sans-serif;
   background: linear-gradient(160deg, var(--bg-top), var(--bg));
   color: var(--text);
 }

@@ -15,10 +15,18 @@
         </div>
         <div class="header-actions">
           <button id="open-history" class="icon-btn" type="button" aria-label="Open history">
-            ⏱️
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <circle cx="12" cy="13" r="8"></circle>
+              <path d="M12 9v5l3 2"></path>
+              <path d="M9 2h6"></path>
+              <path d="M12 2v3"></path>
+            </svg>
           </button>
           <button id="open-settings" class="icon-btn" type="button" aria-label="Open settings">
-            ⚙️
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1z"></path>
+            </svg>
           </button>
         </div>
       </header>
@@ -62,14 +70,22 @@
             <span class="rate-dot" aria-hidden="true"></span>
             <span class="rate-text">Rates updated: --</span>
           </span>
-          <button id="refresh" class="icon-btn" type="button" aria-label="Refresh rates">⟳</button>
+          <button id="refresh" class="icon-btn" type="button" aria-label="Refresh rates">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M20 12a8 8 0 1 1-2.3-5.7"></path>
+              <path d="M20 4v6h-6"></path>
+            </svg>
+          </button>
         </div>
       </section>
 
       <section id="settings-view" class="view hidden">
         <div class="settings-header">
           <button id="back" class="icon-btn" type="button" aria-label="Back">
-            ←
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M19 12H5"></path>
+              <path d="M12 19l-7-7 7-7"></path>
+            </svg>
           </button>
           <div class="settings-title">Settings</div>
         </div>
@@ -211,7 +227,10 @@
       <section id="history-view" class="view hidden">
         <div class="settings-header">
           <button id="history-back" class="icon-btn" type="button" aria-label="Back">
-            ←
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M19 12H5"></path>
+              <path d="M12 19l-7-7 7-7"></path>
+            </svg>
           </button>
           <div class="settings-title">History</div>
           <button id="clear-history" class="ghost small" type="button">Clear</button>
