@@ -510,13 +510,9 @@ function renderConverter(): void {
       await copyAmountValue(code, copyAmount);
     });
 
-    const amountActions = document.createElement('div');
-    amountActions.className = 'amount-actions';
-    amountActions.append(copyAmount, clearAmount);
-
     const amountField = document.createElement('div');
     amountField.className = 'amount-field';
-    amountField.append(input, amountActions);
+    amountField.append(copyAmount, input, clearAmount);
     amountField.classList.toggle('amount-field-has-value', values[code] !== undefined);
 
     const remove = document.createElement('button');
