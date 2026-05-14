@@ -5,16 +5,21 @@ import { sendMessage } from '../shared/runtime';
 import {
   clearHistoryEntries,
   addHistoryEntry,
+  getLastPopupAmount,
   getHistoryEntries,
   getHistorySettings,
   setHistorySettings,
   getSettings,
   onSettingsChanged,
+  setLastPopupAmount,
   setSettings
 } from '../shared/storage';
 import { isSupportedCurrency, normalizeCurrencyList, type FavoritesGroups, type Settings } from '../shared/settings';
 import { applyTheme, type ThemeSetting } from '../shared/theme';
 import type { ConvertResponse, RefreshResponse } from '../background/messaging';
+
+const TRASH_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M6 6l1 14h10l1-14"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>';
 
 const openSettingsBtn = document.querySelector<HTMLButtonElement>('#open-settings')!;
 const openHistoryBtn = document.querySelector<HTMLButtonElement>('#open-history')!;
@@ -131,6 +136,7 @@ let debounceTimer: number | null = null;
 let requestSeq = 0;
 let historySettings = { enabled: false, maxItems: 200 };
 let pendingHistory = false;
+let replacingCode: string | null = null;
 let dragState: {
   code: string;
   row: HTMLDivElement;
@@ -151,9 +157,13 @@ async function init(): Promise<void> {
   historySettings = await getHistorySettings();
   applyTheme(document.documentElement, settings.theme);
   initializeFavorites();
+  await restoreLastPopupAmount();
   renderConverter();
   renderSettings();
   await renderHistory();
+  if (values[activeBase] !== undefined) {
+    scheduleConvert(activeBase, values[activeBase]);
+  }
 
   onSettingsChanged((next) => {
     settings = next;
@@ -177,7 +187,11 @@ async function init(): Promise<void> {
   backBtn.addEventListener('click', () => switchView('converter'));
   historyBackBtn.addEventListener('click', () => switchView('converter'));
 
-  addCurrencyBtn.addEventListener('click', () => togglePicker(picker));
+  addCurrencyBtn.addEventListener('click', () => {
+    replacingCode = null;
+    renderConverter();
+    togglePicker(picker);
+  });
   favoritesAddBtn.addEventListener('click', () => togglePicker(favoritesPicker));
   manageGroupsBtn.addEventListener('click', () => switchView('settings'));
 
@@ -199,8 +213,9 @@ async function init(): Promise<void> {
       payload: { base: activeBase }
     });
     if (response.ok) {
-      if (editingCode && values[editingCode] !== undefined) {
-        scheduleConvert(editingCode, values[editingCode]);
+      const code = editingCode ?? activeBase;
+      if (values[code] !== undefined) {
+        scheduleConvert(code, values[code]);
       }
     } else {
       converterError.textContent = response.error ?? 'Unable to refresh rates.';
@@ -350,11 +365,20 @@ async function init(): Promise<void> {
   });
 
   document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target : null;
     if (!picker.contains(event.target as Node) && event.target !== addCurrencyBtn) {
       hidePicker(picker);
     }
     if (!favoritesPicker.contains(event.target as Node) && event.target !== favoritesAddBtn) {
       hidePicker(favoritesPicker);
+    }
+    if (
+      replacingCode &&
+      !target?.closest('.replace-picker') &&
+      !target?.closest('.currency-pill')
+    ) {
+      replacingCode = null;
+      renderConverter();
     }
   });
 
@@ -393,6 +417,13 @@ function initializeFavorites(): void {
   }
 }
 
+async function restoreLastPopupAmount(): Promise<void> {
+  const last = await getLastPopupAmount();
+  if (!last || !favorites.includes(last.base)) return;
+  activeBase = last.base;
+  values[last.base] = last.amount;
+}
+
 function switchView(view: 'converter' | 'settings' | 'history'): void {
   converterView.classList.toggle('hidden', view !== 'converter');
   settingsView.classList.toggle('hidden', view !== 'settings');
@@ -423,14 +454,26 @@ function renderConverter(): void {
     dragHandle.setAttribute('aria-label', 'Reorder currency');
     dragHandle.draggable = false;
 
-    const pill = document.createElement('div');
+    const pill = document.createElement('button');
+    pill.type = 'button';
     pill.className = 'currency-pill';
+    pill.setAttribute('aria-label', `Change ${code}`);
+    pill.title = `Change ${code}`;
     const flag = document.createElement('span');
     flag.textContent = getCurrencyFlag(code);
     const label = document.createElement('span');
     label.className = 'code';
     label.textContent = code;
     pill.append(flag, label);
+    pill.addEventListener('pointerdown', (event) => {
+      event.stopPropagation();
+    });
+    pill.addEventListener('click', (event) => {
+      event.stopPropagation();
+      replacingCode = replacingCode === code ? null : code;
+      hidePicker(picker);
+      renderConverter();
+    });
 
     const baseTag = document.createElement('span');
     baseTag.className = 'base-tag';
@@ -443,10 +486,29 @@ function renderConverter(): void {
     input.placeholder = '0.00';
     setInputDisplayValue(input, values[code]);
 
+    const clearAmount = document.createElement('button');
+    clearAmount.className = 'clear-amount-btn';
+    clearAmount.type = 'button';
+    clearAmount.textContent = '×';
+    clearAmount.setAttribute('aria-label', `Clear ${code} amount`);
+    clearAmount.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+    });
+    clearAmount.addEventListener('click', () => {
+      clearAmountValue(code, input);
+    });
+
+    const amountField = document.createElement('div');
+    amountField.className = 'amount-field';
+    amountField.append(input, clearAmount);
+    amountField.classList.toggle('amount-field-has-value', values[code] !== undefined);
+
     const remove = document.createElement('button');
     remove.className = 'remove-btn';
     remove.type = 'button';
-    remove.textContent = '×';
+    remove.innerHTML = TRASH_SVG;
+    remove.setAttribute('aria-label', `Remove ${code}`);
+    remove.title = `Remove ${code}`;
     remove.addEventListener('click', () => removeFavorite(code));
 
     input.addEventListener('focus', () => {
@@ -482,9 +544,13 @@ function renderConverter(): void {
     left.className = 'row-left row-grab';
     left.append(dragHandle, pill, baseTag);
 
-    row.append(left, input, remove);
+    row.append(left, amountField, remove);
     converterList.appendChild(row);
     rowMap.set(code, { row, input, baseTag });
+
+    if (replacingCode === code) {
+      converterList.appendChild(buildReplacePicker(code));
+    }
 
     left.addEventListener('pointerdown', (event) => {
       startPointerDrag(event, code, row);
@@ -717,6 +783,17 @@ function getConverterRows(): HTMLDivElement[] {
 function handleInput(code: string, raw: string): void {
   if (isProgrammatic) return;
   setActiveBase(code);
+  const currentInput = rowMap.get(code)?.input;
+  if (!raw.trim()) {
+    converterError.textContent = '';
+    delete values[code];
+    if (currentInput) {
+      currentInput.title = '';
+      currentInput.classList.remove('amount-input-long', 'amount-input-xlong');
+      setAmountFieldHasValue(currentInput, false);
+    }
+    return;
+  }
   const parsed = parseNumber(raw);
   if (parsed === null) {
     converterError.textContent = '';
@@ -724,7 +801,26 @@ function handleInput(code: string, raw: string): void {
   }
   pendingHistory = false;
   values[code] = parsed;
+  if (currentInput) {
+    setAmountFieldHasValue(currentInput, true);
+  }
   scheduleConvert(code, parsed);
+}
+
+function clearAmountValue(code: string, input: HTMLInputElement): void {
+  if (debounceTimer) {
+    window.clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  converterError.textContent = '';
+  delete values[code];
+  input.value = '';
+  input.title = '';
+  input.classList.remove('amount-input-long', 'amount-input-xlong');
+  setAmountFieldHasValue(input, false);
+  if (editingCode === code) {
+    input.focus();
+  }
 }
 
 function scheduleConvert(base: string, amount: number): void {
@@ -773,6 +869,7 @@ async function convertFromBase(base: string, amount: number): Promise<void> {
 
   applyValuesToInputs(base);
   updateRatesLabel(response);
+  void setLastPopupAmount({ base, amount, updatedAt: Date.now() });
 
   if (pendingHistory && historySettings.enabled) {
     pendingHistory = false;
@@ -808,21 +905,54 @@ function setInputDisplayValue(input: HTMLInputElement, value: number | undefined
   input.title = text;
   input.classList.toggle('amount-input-long', text.length > 11);
   input.classList.toggle('amount-input-xlong', text.length > 15);
+  setAmountFieldHasValue(input, text.length > 0);
+}
+
+function setAmountFieldHasValue(input: HTMLInputElement, hasValue: boolean): void {
+  input.closest('.amount-field')?.classList.toggle('amount-field-has-value', hasValue);
 }
 
 function updateRatesLabel(response: ConvertResponse): void {
-  if (response.fetchedAt) {
-    const date = new Date(response.fetchedAt);
+  const label = formatRateLabel(response.fetchedAt, response.date);
+  ratesUpdated.textContent = '';
+  ratesUpdated.setAttribute('aria-label', `Rates updated: ${label}`);
+
+  const dot = document.createElement('span');
+  dot.className = 'rate-dot';
+  dot.setAttribute('aria-hidden', 'true');
+
+  const text = document.createElement('span');
+  text.className = 'rate-text';
+  text.textContent = `Rates updated: ${label}`;
+
+  ratesUpdated.append(dot, text);
+}
+
+function formatRateLabel(fetchedAt?: number, fallbackDate?: string): string {
+  if (typeof fetchedAt === 'number') {
+    const date = new Date(fetchedAt);
     if (!Number.isNaN(date.getTime())) {
-      ratesUpdated.textContent = `Rates updated: ${date.toISOString().slice(0, 10)}`;
-      return;
+      return date.toLocaleString(undefined, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
     }
   }
-  if (response.date) {
-    ratesUpdated.textContent = `Rates updated: ${response.date}`;
-    return;
+  if (fallbackDate) {
+    const parsed = new Date(fallbackDate);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    }
+    return fallbackDate;
   }
-  ratesUpdated.textContent = 'Rates updated: --';
+  return '--';
 }
 
 function applyFeatureAvailability(): void {
@@ -1061,6 +1191,7 @@ async function copyText(text: string): Promise<void> {
 function addFavorite(code: string): void {
   if (!isSupportedCurrency(code)) return;
   if (favorites.includes(code)) return;
+  replacingCode = null;
   favorites = normalizeCurrencyList([...favorites, code]);
   const nextGroups = updateGroupsFromFavorites(favoritesGroups, favorites);
   favoritesGroups = nextGroups;
@@ -1073,6 +1204,9 @@ function addFavorite(code: string): void {
 
 function removeFavorite(code: string): void {
   if (favorites.length <= 1) return;
+  if (replacingCode === code) {
+    replacingCode = null;
+  }
   favorites = favorites.filter((item) => item !== code);
   const nextGroups = updateGroupsFromFavorites(favoritesGroups, favorites);
   favoritesGroups = nextGroups;
@@ -1101,30 +1235,114 @@ function setupPicker(
   onSelect: (code: string) => void
 ): void {
   const render = (query: string): void => {
-    const term = query.trim().toLowerCase();
-    optionsContainer.innerHTML = '';
-    SUPPORTED_CURRENCIES.forEach((code) => {
-      if (favorites.includes(code)) return;
-      const name = CURRENCY_NAMES[code] ?? code;
-      const aliases = CURRENCY_ALIASES[code] ?? [];
-      if (term) {
-        const match =
-          code.toLowerCase().includes(term) ||
-          name.toLowerCase().includes(term) ||
-          aliases.some((alias) => alias.toLowerCase().includes(term));
-        if (!match) return;
-      }
-      const option = document.createElement('button');
-      option.type = 'button';
-      option.className = 'picker-option';
-      option.innerHTML = `<span>${getCurrencyFlag(code)} ${code}</span><span>${name}</span>`;
-      option.addEventListener('click', () => onSelect(code));
-      optionsContainer.appendChild(option);
-    });
+    renderCurrencyOptions(optionsContainer, query, onSelect);
   };
 
   searchInput.addEventListener('input', () => render(searchInput.value));
   render('');
+}
+
+function buildReplacePicker(codeToReplace: string): HTMLDivElement {
+  const container = document.createElement('div');
+  container.className = 'picker replace-picker';
+
+  const search = document.createElement('input');
+  search.type = 'text';
+  search.placeholder = 'Replace with...';
+  search.autocomplete = 'off';
+
+  const options = document.createElement('div');
+  options.className = 'picker-options';
+
+  const render = (): void => {
+    renderCurrencyOptions(
+      options,
+      search.value,
+      (nextCode) => replaceFavorite(codeToReplace, nextCode),
+      codeToReplace
+    );
+  };
+
+  search.addEventListener('input', render);
+  container.append(search, options);
+  render();
+
+  window.setTimeout(() => {
+    search.focus();
+    search.select();
+  }, 0);
+
+  return container;
+}
+
+function renderCurrencyOptions(
+  optionsContainer: HTMLDivElement,
+  query: string,
+  onSelect: (code: string) => void,
+  includeFavorite?: string
+): void {
+  const term = query.trim().toLowerCase();
+  optionsContainer.innerHTML = '';
+  SUPPORTED_CURRENCIES.forEach((code) => {
+    if (favorites.includes(code) && code !== includeFavorite) return;
+    const name = CURRENCY_NAMES[code] ?? code;
+    const aliases = CURRENCY_ALIASES[code] ?? [];
+    if (term) {
+      const match =
+        code.toLowerCase().includes(term) ||
+        name.toLowerCase().includes(term) ||
+        aliases.some((alias) => alias.toLowerCase().includes(term));
+      if (!match) return;
+    }
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = 'picker-option';
+    if (code === includeFavorite) {
+      option.classList.add('picker-option-current');
+    }
+    option.innerHTML = `<span>${getCurrencyFlag(code)} ${code}</span><span>${name}</span>`;
+    option.addEventListener('click', () => onSelect(code));
+    optionsContainer.appendChild(option);
+  });
+}
+
+function replaceFavorite(codeToReplace: string, nextCode: string): void {
+  if (!isSupportedCurrency(codeToReplace) || !isSupportedCurrency(nextCode)) return;
+  if (codeToReplace === nextCode) {
+    replacingCode = null;
+    renderConverter();
+    return;
+  }
+  if (!favorites.includes(codeToReplace) || favorites.includes(nextCode)) return;
+
+  const nextFavorites = favorites.map((code) => (code === codeToReplace ? nextCode : code));
+  const previousAmount = values[codeToReplace];
+  delete values[codeToReplace];
+  if (activeBase === codeToReplace) {
+    activeBase = nextCode;
+    editingCode = editingCode === codeToReplace ? nextCode : editingCode;
+    if (previousAmount !== undefined) {
+      values[nextCode] = previousAmount;
+    }
+  }
+
+  favorites = normalizeCurrencyList(nextFavorites);
+  const nextGroups = updateGroupsFromFavorites(favoritesGroups, favorites);
+  favoritesGroups = nextGroups;
+  replacingCode = null;
+  void setSettings({
+    baseCurrency: activeBase,
+    favorites,
+    targets: favorites,
+    favoritesGroups: nextGroups
+  });
+  renderConverter();
+  renderSettings();
+
+  const amount = values[activeBase];
+  if (amount !== undefined) {
+    scheduleConvert(activeBase, amount);
+  }
 }
 
 function togglePicker(container: HTMLDivElement): void {

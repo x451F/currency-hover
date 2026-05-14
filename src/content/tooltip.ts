@@ -96,7 +96,11 @@ export class TooltipController {
     this.lastState = state;
     this.lastRect = rect;
     this.autoHideMs = Math.max(0, autoHideSeconds * 1000);
-    this.render(state);
+    if (this.isEditingBase && state.type === 'ready' && this.card.firstElementChild) {
+      this.updateReadyBodyDuringEdit(state);
+    } else {
+      this.render(state);
+    }
     this.position(rect);
     this.root.classList.add('ccx-visible');
 
@@ -133,6 +137,15 @@ export class TooltipController {
     const value = this.baseEditValue;
     this.exitBaseEdit(false);
     this.lastState.controls.onBaseAmountCommit(value);
+  }
+
+  finishBaseEdit(): void {
+    if (!this.isEditingBase) return;
+    this.exitBaseEdit(false);
+  }
+
+  getBaseEditValue(): string {
+    return this.baseEditValue;
   }
 
   cancelBaseEdit(): void {
@@ -250,17 +263,7 @@ export class TooltipController {
     }
 
     if (state.type === 'ready' && state.rateLabel) {
-      const subtitle = document.createElement('div');
-      subtitle.className = 'ccx-subtitle';
-      const dot = document.createElement('span');
-      dot.className = 'ccx-live-dot';
-      dot.textContent = '●';
-
-      const text = document.createElement('span');
-      text.textContent = state.rateLabel;
-
-      subtitle.append(dot, text);
-      header.appendChild(subtitle);
+      header.appendChild(this.buildRateSubtitle(state.rateLabel));
     }
 
     this.card.appendChild(header);
@@ -281,6 +284,29 @@ export class TooltipController {
       return;
     }
 
+    this.appendReadyBody(state);
+  }
+
+  private updateReadyBodyDuringEdit(state: Extract<TooltipState, { type: 'ready' }>): void {
+    const header = this.card.firstElementChild;
+    if (!(header instanceof HTMLElement)) {
+      this.render(state);
+      return;
+    }
+
+    header.querySelector('.ccx-subtitle')?.remove();
+    if (state.rateLabel) {
+      header.appendChild(this.buildRateSubtitle(state.rateLabel));
+    }
+
+    while (this.card.children.length > 1) {
+      this.card.lastElementChild?.remove();
+    }
+    this.appendReadyBody(state);
+  }
+
+  private appendReadyBody(state: Extract<TooltipState, { type: 'ready' }>): void {
+    const controls = state.controls;
     const list = document.createElement('div');
     list.className = 'ccx-list';
     state.conversions.forEach((row, index) => {
@@ -354,6 +380,20 @@ export class TooltipController {
       error.textContent = state.errorMessage;
       this.card.appendChild(error);
     }
+  }
+
+  private buildRateSubtitle(rateLabel: string): HTMLDivElement {
+    const subtitle = document.createElement('div');
+    subtitle.className = 'ccx-subtitle';
+    const dot = document.createElement('span');
+    dot.className = 'ccx-live-dot';
+    dot.textContent = '●';
+
+    const text = document.createElement('span');
+    text.textContent = rateLabel;
+
+    subtitle.append(dot, text);
+    return subtitle;
   }
 
   private position(rect: DOMRect): void {

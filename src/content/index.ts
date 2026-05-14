@@ -78,6 +78,23 @@ async function init(): Promise<void> {
     const baseParts = formatCurrencyParts(currentAmount, base, formatSettings);
     const baseCopyValue = formatCopyValue(currentAmount, base, currentSettings.copy, formatSettings);
     const availableCurrencies = [...SUPPORTED_CURRENCIES];
+    const commitBaseAmount = (raw: string, shouldRender: boolean): void => {
+      clearEditConvert();
+      const parsed = parseInput(raw);
+      if (parsed !== null) {
+        currentAmount = parsed;
+        shouldLogHistory = true;
+        if (shouldRender) {
+          void convertAndRender();
+        }
+      } else if (editStartAmount !== null) {
+        currentAmount = editStartAmount;
+        if (shouldRender) {
+          void convertAndRender();
+        }
+      }
+      editStartAmount = null;
+    };
     const controls = {
       baseAmount: baseParts.amount,
       baseSymbol: baseParts.symbol,
@@ -120,17 +137,7 @@ async function init(): Promise<void> {
         scheduleEditConvert();
       },
       onBaseAmountCommit: (raw: string) => {
-        clearEditConvert();
-        const parsed = parseInput(raw);
-        if (parsed !== null) {
-          currentAmount = parsed;
-          shouldLogHistory = true;
-          void convertAndRender();
-        } else if (editStartAmount !== null) {
-          currentAmount = editStartAmount;
-          void convertAndRender();
-        }
-        editStartAmount = null;
+        commitBaseAmount(raw, true);
       },
       onBaseAmountCancel: () => {
         clearEditConvert();
@@ -291,8 +298,38 @@ async function init(): Promise<void> {
     'mousedown',
     (event) => {
       if (tooltip.isEditing()) {
-        if (!tooltip.contains(event.target)) {
-          tooltip.commitBaseEdit();
+        const target = event.target instanceof Element ? event.target : null;
+        const isBaseInput = Boolean(target?.closest('.ccx-base-input'));
+        if (isBaseInput) return;
+
+        const raw = tooltip.getBaseEditValue();
+        tooltip.finishBaseEdit();
+        clearEditConvert();
+        const clickedCurrencyControl = Boolean(target?.closest('.ccx-code-btn, .ccx-option'));
+
+        if (tooltip.contains(event.target)) {
+          const parsed = parseInput(raw);
+          if (parsed !== null) {
+            currentAmount = parsed;
+            shouldLogHistory = true;
+          } else if (editStartAmount !== null) {
+            currentAmount = editStartAmount;
+          }
+          editStartAmount = null;
+          if (!clickedCurrencyControl) {
+            void convertAndRender();
+          }
+        } else {
+          const parsed = parseInput(raw);
+          if (parsed !== null) {
+            currentAmount = parsed;
+            shouldLogHistory = true;
+            void convertAndRender();
+          } else if (editStartAmount !== null) {
+            currentAmount = editStartAmount;
+            void convertAndRender();
+          }
+          editStartAmount = null;
           suppressSelection = true;
           window.setTimeout(() => {
             suppressSelection = false;

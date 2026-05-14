@@ -2,6 +2,7 @@ import {
   CRYPTO_CACHE_KEY,
   HISTORY_KEY,
   HISTORY_SETTINGS_KEY,
+  LAST_POPUP_AMOUNT_KEY,
   RATES_CACHE_KEY,
   SETTINGS_KEY
 } from './constants';
@@ -41,6 +42,12 @@ export interface HistoryEntry {
 export interface HistorySettings {
   enabled: boolean;
   maxItems: number;
+}
+
+export interface LastPopupAmount {
+  base: string;
+  amount: number;
+  updatedAt: number;
 }
 
 export type SettingsPatch = Omit<Partial<Settings>, 'tooltip' | 'format' | 'copy'> & {
@@ -158,6 +165,17 @@ export async function clearHistoryEntries(): Promise<void> {
   await chrome.storage.local.remove(HISTORY_KEY);
 }
 
+export async function getLastPopupAmount(): Promise<LastPopupAmount | null> {
+  const stored = await chrome.storage.local.get(LAST_POPUP_AMOUNT_KEY);
+  return sanitizeLastPopupAmount(stored[LAST_POPUP_AMOUNT_KEY]);
+}
+
+export async function setLastPopupAmount(entry: LastPopupAmount): Promise<void> {
+  const sanitized = sanitizeLastPopupAmount(entry);
+  if (!sanitized) return;
+  await chrome.storage.local.set({ [LAST_POPUP_AMOUNT_KEY]: sanitized });
+}
+
 export async function getHistorySettings(): Promise<HistorySettings> {
   const stored = await chrome.storage.local.get(HISTORY_SETTINGS_KEY);
   const settings = (stored[HISTORY_SETTINGS_KEY] as HistorySettings | undefined) ?? DEFAULT_HISTORY_SETTINGS;
@@ -177,6 +195,24 @@ function sanitizeHistorySettings(settings: HistorySettings): HistorySettings {
     ? Math.max(50, Math.min(2000, Math.round(settings.maxItems)))
     : DEFAULT_HISTORY_SETTINGS.maxItems;
   return { enabled, maxItems };
+}
+
+function sanitizeLastPopupAmount(entry: unknown): LastPopupAmount | null {
+  if (!entry || typeof entry !== 'object') return null;
+  const raw = entry as Partial<LastPopupAmount>;
+  if (typeof raw.base !== 'string') return null;
+  const base = normalizeCurrencyCode(raw.base);
+  if (!isSupportedCurrency(base)) return null;
+  if (!Number.isFinite(raw.amount)) return null;
+  const amount = typeof raw.amount === 'number' ? raw.amount : 0;
+  const updatedAt = typeof raw.updatedAt === 'number' && Number.isFinite(raw.updatedAt)
+    ? Math.max(0, Math.round(raw.updatedAt))
+    : Date.now();
+  return {
+    base,
+    amount,
+    updatedAt
+  };
 }
 
 function sanitizeHistoryEntry(entry: unknown): HistoryEntry | null {
