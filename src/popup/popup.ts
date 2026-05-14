@@ -20,6 +20,10 @@ import type { ConvertResponse, RefreshResponse } from '../background/messaging';
 
 const TRASH_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M6 6l1 14h10l1-14"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>';
+const COPY_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><rect x="5" y="5" width="10" height="10" rx="2"></rect></svg>';
+const CHECK_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"></path></svg>';
 
 const openSettingsBtn = document.querySelector<HTMLButtonElement>('#open-settings')!;
 const openHistoryBtn = document.querySelector<HTMLButtonElement>('#open-history')!;
@@ -149,7 +153,7 @@ let dragState: {
 
 const rowMap = new Map<
   string,
-  { row: HTMLDivElement; input: HTMLInputElement; baseTag: HTMLSpanElement }
+  { row: HTMLDivElement; input: HTMLInputElement }
 >();
 
 async function init(): Promise<void> {
@@ -475,10 +479,6 @@ function renderConverter(): void {
       renderConverter();
     });
 
-    const baseTag = document.createElement('span');
-    baseTag.className = 'base-tag';
-    baseTag.textContent = 'Base';
-
     const input = document.createElement('input');
     input.className = 'amount-input';
     input.type = 'text';
@@ -498,9 +498,25 @@ function renderConverter(): void {
       clearAmountValue(code, input);
     });
 
+    const copyAmount = document.createElement('button');
+    copyAmount.className = 'copy-amount-btn';
+    copyAmount.type = 'button';
+    copyAmount.innerHTML = COPY_SVG;
+    copyAmount.setAttribute('aria-label', `Copy ${code} amount`);
+    copyAmount.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+    });
+    copyAmount.addEventListener('click', async () => {
+      await copyAmountValue(code, copyAmount);
+    });
+
+    const amountActions = document.createElement('div');
+    amountActions.className = 'amount-actions';
+    amountActions.append(copyAmount, clearAmount);
+
     const amountField = document.createElement('div');
     amountField.className = 'amount-field';
-    amountField.append(input, clearAmount);
+    amountField.append(input, amountActions);
     amountField.classList.toggle('amount-field-has-value', values[code] !== undefined);
 
     const remove = document.createElement('button');
@@ -520,7 +536,7 @@ function renderConverter(): void {
       }
     });
     input.addEventListener('input', () => {
-      handleInput(code, input.value);
+      handleInput(code, input);
     });
     input.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
@@ -542,11 +558,11 @@ function renderConverter(): void {
 
     const left = document.createElement('div');
     left.className = 'row-left row-grab';
-    left.append(dragHandle, pill, baseTag);
+    left.append(dragHandle, pill);
 
     row.append(left, amountField, remove);
     converterList.appendChild(row);
-    rowMap.set(code, { row, input, baseTag });
+    rowMap.set(code, { row, input });
 
     if (replacingCode === code) {
       converterList.appendChild(buildReplacePicker(code));
@@ -647,10 +663,10 @@ function setActiveBase(code: string): void {
 }
 
 function updateActiveRow(): void {
-  rowMap.forEach(({ row, baseTag }, code) => {
+  rowMap.forEach(({ row }, code) => {
     const active = code === activeBase;
     row.classList.toggle('active', active);
-    baseTag.style.display = active ? 'inline-flex' : 'none';
+    row.setAttribute('aria-current', active ? 'true' : 'false');
   });
 }
 
@@ -780,9 +796,10 @@ function getConverterRows(): HTMLDivElement[] {
   return Array.from(converterList.querySelectorAll<HTMLDivElement>('.converter-row'));
 }
 
-function handleInput(code: string, raw: string): void {
+function handleInput(code: string, input: HTMLInputElement): void {
   if (isProgrammatic) return;
   setActiveBase(code);
+  const raw = sanitizeAmountInput(input);
   const currentInput = rowMap.get(code)?.input;
   if (!raw.trim()) {
     converterError.textContent = '';
@@ -807,6 +824,42 @@ function handleInput(code: string, raw: string): void {
   scheduleConvert(code, parsed);
 }
 
+function sanitizeAmountInput(input: HTMLInputElement): string {
+  const original = input.value;
+  const cursor = input.selectionStart ?? original.length;
+  const beforeCursor = original.slice(0, cursor);
+  const sanitized = sanitizeAmountText(original);
+  if (sanitized === original) return original;
+
+  const sanitizedBeforeCursor = sanitizeAmountText(beforeCursor);
+  input.value = sanitized;
+  const nextCursor = Math.min(sanitizedBeforeCursor.length, sanitized.length);
+  input.setSelectionRange(nextCursor, nextCursor);
+  return sanitized;
+}
+
+function sanitizeAmountText(value: string): string {
+  let result = '';
+  let hasSeparator = false;
+  let hasSign = false;
+  for (const char of value.replace(/\s+/g, '')) {
+    if (/\d/.test(char)) {
+      result += char;
+      continue;
+    }
+    if ((char === '.' || char === ',') && !hasSeparator) {
+      result += char;
+      hasSeparator = true;
+      continue;
+    }
+    if (char === '-' && !hasSign && result.length === 0) {
+      result += char;
+      hasSign = true;
+    }
+  }
+  return result;
+}
+
 function clearAmountValue(code: string, input: HTMLInputElement): void {
   if (debounceTimer) {
     window.clearTimeout(debounceTimer);
@@ -821,6 +874,18 @@ function clearAmountValue(code: string, input: HTMLInputElement): void {
   if (editingCode === code) {
     input.focus();
   }
+}
+
+async function copyAmountValue(code: string, button: HTMLButtonElement): Promise<void> {
+  const value = values[code];
+  if (value === undefined) return;
+  await copyText(formatCopyValue(value, code, settings.copy, settings.format));
+  button.innerHTML = CHECK_SVG;
+  button.classList.add('copy-success');
+  window.setTimeout(() => {
+    button.innerHTML = COPY_SVG;
+    button.classList.remove('copy-success');
+  }, 900);
 }
 
 function scheduleConvert(base: string, amount: number): void {

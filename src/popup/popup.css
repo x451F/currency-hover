@@ -149,7 +149,7 @@ body {
 
 .converter-row {
   display: grid;
-  grid-template-columns: minmax(82px, auto) minmax(0, 1fr) 18px;
+  grid-template-columns: minmax(82px, auto) minmax(0, 1fr) 22px;
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
@@ -165,6 +165,11 @@ body {
 .converter-row.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
+.converter-row.active .currency-pill {
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .converter-row:hover {
@@ -245,16 +250,6 @@ body {
   letter-spacing: 0.3px;
 }
 
-.base-tag {
-  display: none;
-  font-size: 10px;
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  padding: 2px 6px;
-  margin-left: 6px;
-}
-
 .row-left {
   display: inline-flex;
   align-items: center;
@@ -286,13 +281,31 @@ body {
 }
 
 .amount-field .amount-input {
-  padding-right: 22px;
+  padding-right: 0;
+  transition: padding-right 120ms ease;
 }
 
-.clear-amount-btn {
+.amount-field-has-value:hover .amount-input,
+.converter-row:focus-within .amount-field-has-value .amount-input {
+  padding-right: 48px;
+}
+
+.amount-actions {
   position: absolute;
   top: 50%;
   right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transform: translateY(-50%) scale(0.96);
+  transition: opacity 120ms ease, visibility 120ms ease, transform 120ms ease;
+}
+
+.copy-amount-btn,
+.clear-amount-btn {
   width: 18px;
   height: 18px;
   border: none;
@@ -302,23 +315,39 @@ body {
   cursor: pointer;
   font-size: 13px;
   line-height: 1;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-50%) scale(0.92);
-  transition: opacity 120ms ease, color 120ms ease, background 120ms ease,
-    transform 120ms ease;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease, background 120ms ease;
 }
 
-.amount-field-has-value:hover .clear-amount-btn,
-.amount-field-has-value:focus-within .clear-amount-btn {
+.copy-amount-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.amount-field-has-value:hover .amount-actions,
+.converter-row:focus-within .amount-field-has-value .amount-actions {
   opacity: 1;
   pointer-events: auto;
+  visibility: visible;
   transform: translateY(-50%) scale(1);
 }
 
+.copy-amount-btn:hover,
 .clear-amount-btn:hover {
   color: var(--text);
   background: var(--accent-soft);
+}
+
+.copy-amount-btn.copy-success {
+  color: var(--accent);
 }
 
 .amount-input.amount-input-long {
@@ -346,7 +375,13 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: color 120ms ease, background 120ms ease;
+  opacity: 0.5;
+  transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.converter-row:hover .remove-btn,
+.converter-row:focus-within .remove-btn {
+  opacity: 1;
 }
 
 .remove-btn svg {
