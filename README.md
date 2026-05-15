@@ -10,7 +10,9 @@ Built with TypeScript, Vite, and Chrome Extension Manifest V3.
 
 ## Demo
 
-![Currency Hover demo](./docs/demo.mp4)
+<video src="./docs/demo.mp4" controls muted loop playsinline width="100%"></video>
+
+[Open demo video](./docs/demo.mp4)
 
 Quick flow: select an amount on a webpage → detect the currency → show converted values in a tooltip.
 
@@ -91,7 +93,8 @@ public/
   icons/        Extension icons
 
 docs/
-  demo.gif      Short extension demo
+  demo.mp4      Short extension demo
+  demo.webm     Alternative demo video
   tooltip.png   Tooltip screenshot
   popup.png     Popup screenshot
 
