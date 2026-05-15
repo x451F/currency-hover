@@ -10,7 +10,7 @@ Built with TypeScript, Vite, and Chrome Extension Manifest V3.
 
 ## Demo
 
-<video src="./docs/demo.mp4" controls muted loop playsinline width="100%"></video>
+![Currency Hover demo](./docs/demo.gif)
 
 [Open demo video](./docs/demo.mp4)
 
