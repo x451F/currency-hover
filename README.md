@@ -10,7 +10,7 @@ Built with TypeScript, Vite, and Chrome Extension Manifest V3.
 
 ## Demo
 
-![Currency Hover demo](./docs/demo.gif)
+![Currency Hover demo](./docs/demo.webm)
 
 Quick flow: select an amount on a webpage → detect the currency → show converted values in a tooltip.
 
