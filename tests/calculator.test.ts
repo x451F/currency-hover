@@ -30,6 +30,7 @@ describe('tokenizeExpression', () => {
 describe('evaluateCurrencyExpression', () => {
   it('evaluates plain calculations without assigning a currency', () => {
     const result = evaluateCurrencyExpression('30 + 2', {
+      defaultCurrency: null,
       resultCurrency: null,
       rates: {}
     });
@@ -39,15 +40,17 @@ describe('evaluateCurrencyExpression', () => {
 
   it('uses the selected result currency for untagged amounts and converts tagged amounts', () => {
     const result = evaluateCurrencyExpression('30 + 2 EUR', {
+      defaultCurrency: 'UAH',
       resultCurrency: 'CAD',
       rates: ratesFromCad
     });
-    expect(result.value).toBeCloseTo(30 + 2 / ratesFromCad.EUR);
+    expect(result.value).toBeCloseTo(30 / ratesFromCad.UAH + 2 / ratesFromCad.EUR);
     expect(result.currency).toBe('CAD');
   });
 
   it('supports parentheses, division, decimal commas, and aliases', () => {
     const result = evaluateCurrencyExpression('(30 UAH + 2,2 €) / 2', {
+      defaultCurrency: 'UAH',
       resultCurrency: 'CAD',
       rates: ratesFromCad
     });
@@ -56,6 +59,7 @@ describe('evaluateCurrencyExpression', () => {
 
   it('treats percent as a numeric postfix divided by one hundred', () => {
     const result = evaluateCurrencyExpression('200 * 10%', {
+      defaultCurrency: null,
       resultCurrency: null,
       rates: {}
     });
@@ -65,24 +69,28 @@ describe('evaluateCurrencyExpression', () => {
   it('rejects malformed calculations and unavailable conversions', () => {
     expect(() =>
       evaluateCurrencyExpression('(10 + 2', {
+        defaultCurrency: null,
         resultCurrency: null,
         rates: {}
       })
     ).toThrow('Missing closing parenthesis');
     expect(() =>
       evaluateCurrencyExpression('10 / 0', {
+        defaultCurrency: null,
         resultCurrency: null,
         rates: {}
       })
     ).toThrow('Cannot divide by zero');
     expect(() =>
       evaluateCurrencyExpression('2 CAD', {
+        defaultCurrency: 'UAH',
         resultCurrency: 'UAH',
         rates: {}
       })
     ).toThrow('Missing exchange rate for CAD');
     expect(() =>
       evaluateCurrencyExpression('2 EUR', {
+        defaultCurrency: null,
         resultCurrency: null,
         rates: {}
       })

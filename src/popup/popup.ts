@@ -29,6 +29,8 @@ const COPY_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><rect x="5" y="5" width="10" height="10" rx="2"></rect></svg>';
 const CHECK_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"></path></svg>';
+const CALCULATOR_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M8 7h8"></path><path d="M8 11h2"></path><path d="M12 11h2"></path><path d="M16 11h.01"></path><path d="M8 15h2"></path><path d="M12 15h2"></path><path d="M16 15h.01"></path></svg>';
 
 const openSettingsBtn = document.querySelector<HTMLButtonElement>('#open-settings')!;
 const openHistoryBtn = document.querySelector<HTMLButtonElement>('#open-history')!;
@@ -148,15 +150,29 @@ let historySettings = { enabled: false, maxItems: 200 };
 let pendingHistory = false;
 let replacingCode: string | null = null;
 const calculatorState: {
+  isOpen: boolean;
+  keypadVisible: boolean;
+  currencyPickerOpen: boolean;
+  currencyPickerExpanded: boolean;
+  currencySearch: string;
   expression: string;
+  defaultCurrency: string;
   resultCurrency: string;
+  applyTargetCurrency: string;
   cursorStart: number;
   cursorEnd: number;
   result: CurrencyExpressionResult | null;
   error: string;
 } = {
+  isOpen: false,
+  keypadVisible: false,
+  currencyPickerOpen: false,
+  currencyPickerExpanded: false,
+  currencySearch: '',
   expression: '',
+  defaultCurrency: '',
   resultCurrency: '',
+  applyTargetCurrency: '',
   cursorStart: 0,
   cursorEnd: 0,
   result: null,
@@ -409,6 +425,12 @@ async function init(): Promise<void> {
     }
   });
 
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && calculatorState.isOpen) {
+      closeCalculator();
+    }
+  });
+
   pickerSearch.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       hidePicker(picker);
@@ -547,6 +569,19 @@ function renderConverter(): void {
     remove.title = `Remove ${code}`;
     remove.addEventListener('click', () => removeFavorite(code));
 
+    const calculator = document.createElement('button');
+    calculator.className = 'row-calculator-btn';
+    calculator.type = 'button';
+    calculator.innerHTML = CALCULATOR_SVG;
+    calculator.setAttribute('aria-label', `Open calculator for ${code}`);
+    calculator.title = `Calculate ${code}`;
+    calculator.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+    });
+    calculator.addEventListener('click', () => {
+      openCalculator(code);
+    });
+
     input.addEventListener('focus', () => {
       setActiveBase(code);
       if (values[code] !== undefined) {
@@ -580,7 +615,7 @@ function renderConverter(): void {
     left.className = 'row-left row-grab';
     left.append(dragHandle, pill);
 
-    row.append(left, amountField, remove);
+    row.append(left, amountField, calculator, remove);
     converterList.appendChild(row);
     rowMap.set(code, { row, input });
 
@@ -594,7 +629,7 @@ function renderConverter(): void {
   });
 
   updateActiveRow();
-  mountCalculatorPanel();
+  renderCalculator();
 }
 
 function updateGroupSwitcher(): void {
@@ -694,32 +729,139 @@ function updateActiveRow(): void {
   });
 }
 
-function mountCalculatorPanel(): void {
+function renderCalculator(): void {
   calculatorRoot.innerHTML = '';
-  const state = calculatorState;
+  calculatorRoot.appendChild(buildCalculatorLauncher());
+  if (calculatorState.isOpen) {
+    calculatorRoot.appendChild(buildCalculatorOverlay());
+    updateCalculatorOutput();
+    scheduleCalculatorEvaluation();
+  }
+}
+
+function buildCalculatorLauncher(): HTMLButtonElement {
+  const launcher = document.createElement('button');
+  launcher.type = 'button';
+  launcher.className = 'calculator-launcher';
+  launcher.setAttribute('aria-label', 'Open calculator');
+
+  const icon = document.createElement('span');
+  icon.className = 'calculator-launcher-icon';
+  icon.innerHTML = CALCULATOR_SVG;
+
+  const text = document.createElement('span');
+  text.className = 'calculator-launcher-copy';
+  const title = document.createElement('span');
+  title.className = 'calculator-launcher-title';
+  title.textContent = 'Calculator';
+  const subtitle = document.createElement('span');
+  subtitle.className = 'calculator-launcher-subtitle';
+  subtitle.textContent = 'Do math with currencies';
+  text.append(title, subtitle);
+
+  const arrow = document.createElement('span');
+  arrow.className = 'calculator-launcher-arrow';
+  arrow.textContent = '›';
+
+  launcher.append(icon, text, arrow);
+  launcher.addEventListener('click', () => openCalculator());
+  return launcher;
+}
+
+function openCalculator(sourceCurrency?: string): void {
+  const defaultCurrency = getCalculatorDefaultCurrency(sourceCurrency);
+  const amount = sourceCurrency ? values[sourceCurrency] : undefined;
+  const expression =
+    sourceCurrency && amount !== undefined ? `${formatEditValue(amount)} ${sourceCurrency}` : '';
+  calculatorState.isOpen = true;
+  calculatorState.keypadVisible = false;
+  calculatorState.currencyPickerOpen = false;
+  calculatorState.currencyPickerExpanded = false;
+  calculatorState.currencySearch = '';
+  calculatorState.expression = expression;
+  calculatorState.defaultCurrency = defaultCurrency;
+  calculatorState.resultCurrency = defaultCurrency;
+  calculatorState.applyTargetCurrency = sourceCurrency ?? defaultCurrency;
+  calculatorState.cursorStart = expression.length;
+  calculatorState.cursorEnd = expression.length;
+  calculatorState.result = null;
+  calculatorState.error = '';
+  renderCalculator();
+  window.setTimeout(() => {
+    calculatorRoot.querySelector<HTMLInputElement>('.calculator-expression')?.focus();
+  }, 0);
+}
+
+function closeCalculator(): void {
+  if (calculatorTimer !== null) {
+    window.clearTimeout(calculatorTimer);
+    calculatorTimer = null;
+  }
+  calculatorRequestSeq += 1;
+  calculatorState.isOpen = false;
+  calculatorState.currencyPickerOpen = false;
+  calculatorState.currencySearch = '';
+  renderCalculator();
+}
+
+function getCalculatorDefaultCurrency(preferred?: string): string {
+  if (preferred && isSupportedCurrency(preferred)) return preferred;
+  if (activeBase && favorites.includes(activeBase)) return activeBase;
+  return favorites[0] ?? SUPPORTED_CURRENCIES[0];
+}
+
+function buildCalculatorOverlay(): HTMLDivElement {
+  const overlay = document.createElement('div');
+  overlay.className = 'calculator-overlay';
+  overlay.addEventListener('mousedown', (event) => {
+    if (event.target === overlay) {
+      closeCalculator();
+    }
+  });
 
   const panel = document.createElement('section');
-  panel.className = 'calculator-panel';
+  panel.className = calculatorState.keypadVisible
+    ? 'calculator-panel calculator-panel-keypad'
+    : 'calculator-panel';
   panel.setAttribute('aria-label', 'Currency calculator');
+  panel.addEventListener('mousedown', (event) => event.stopPropagation());
 
   const header = document.createElement('div');
   header.className = 'calculator-header';
-  const title = document.createElement('span');
+  const title = document.createElement('div');
+  title.className = 'calculator-title';
   title.textContent = 'Calculator';
-  const base = document.createElement('span');
-  base.className = 'calculator-base';
-  base.textContent = state.resultCurrency
-    ? `Numbers use ${state.resultCurrency}`
-    : 'No default currency';
-  header.append(title, base);
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'calculator-close';
+  close.setAttribute('aria-label', 'Close calculator');
+  close.textContent = '×';
+  close.addEventListener('click', closeCalculator);
+  header.append(title, close);
+
+  const body = document.createElement('div');
+  body.className = 'calculator-body';
+  body.append(buildCalculatorMain());
+  if (calculatorState.keypadVisible) {
+    body.append(buildCalculatorKeypad());
+  }
+
+  panel.append(header, body);
+  overlay.appendChild(panel);
+  return overlay;
+}
+
+function buildCalculatorMain(): HTMLDivElement {
+  const main = document.createElement('div');
+  main.className = 'calculator-main';
 
   const expression = document.createElement('input');
   expression.className = 'calculator-expression';
   expression.type = 'text';
   expression.inputMode = 'decimal';
   expression.autocomplete = 'off';
-  expression.placeholder = '30 + 2 or 30 UAH + 2 EUR';
-  expression.value = state.expression;
+  expression.placeholder = `30 + 2 EUR`;
+  expression.value = calculatorState.expression;
   expression.setAttribute('aria-label', 'Calculation expression');
   expression.addEventListener('input', () => {
     calculatorState.expression = expression.value;
@@ -735,9 +877,98 @@ function mountCalculatorPanel(): void {
     }
   });
 
+  const currencyRow = document.createElement('div');
+  currencyRow.className = 'calculator-currency-row';
+  const currencyButton = document.createElement('button');
+  currencyButton.type = 'button';
+  currencyButton.className = 'calculator-currency-button';
+  currencyButton.textContent = '+ Currency';
+  currencyButton.addEventListener('mousedown', (event) => event.preventDefault());
+  currencyButton.addEventListener('click', () => {
+    calculatorState.currencyPickerOpen = !calculatorState.currencyPickerOpen;
+    calculatorState.currencySearch = '';
+    calculatorState.currencyPickerExpanded = false;
+    renderCalculator();
+  });
+  currencyRow.appendChild(currencyButton);
+  if (calculatorState.currencyPickerOpen) {
+    currencyRow.appendChild(buildCalculatorCurrencyPicker());
+  }
+
+  const quick = document.createElement('div');
+  quick.className = 'calculator-quick-row';
+  [
+    ['/2', ' / 2'],
+    ['×2', ' × 2'],
+    ['+10%', ' × 1.1'],
+    ['-10%', ' × 0.9']
+  ].forEach(([label, transform]) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'calculator-chip';
+    chip.textContent = label;
+    chip.addEventListener('click', () => applyQuickTransform(transform));
+    quick.appendChild(chip);
+  });
+
+  const resultRow = document.createElement('div');
+  resultRow.className = 'calculator-result-row';
+  const resultLabel = document.createElement('label');
+  resultLabel.className = 'calculator-result-select';
+  resultLabel.appendChild(document.createTextNode('Result in:'));
+  const select = document.createElement('select');
+  select.setAttribute('aria-label', 'Result currency');
+  getCalculatorResultCurrencies().forEach((code) => {
+    const option = document.createElement('option');
+    option.value = code;
+    option.textContent = code;
+    select.appendChild(option);
+  });
+  select.value = calculatorState.resultCurrency;
+  select.addEventListener('change', () => {
+    calculatorState.resultCurrency = select.value;
+    scheduleCalculatorEvaluation();
+  });
+  resultLabel.appendChild(select);
+  const output = document.createElement('div');
+  output.className = 'calculator-output';
+  output.setAttribute('aria-live', 'polite');
+  resultRow.append(resultLabel, output);
+
+  const helper = document.createElement('div');
+  helper.className = 'calculator-helper';
+  helper.setAttribute('role', 'status');
+
+  const actions = document.createElement('div');
+  actions.className = 'calculator-actions';
+  const keypadToggle = document.createElement('button');
+  keypadToggle.type = 'button';
+  keypadToggle.className = 'calculator-keypad-toggle';
+  keypadToggle.textContent = calculatorState.keypadVisible ? 'Hide keypad' : 'Show keypad';
+  keypadToggle.addEventListener('click', () => {
+    calculatorState.keypadVisible = !calculatorState.keypadVisible;
+    renderCalculator();
+  });
+  const apply = document.createElement('button');
+  apply.type = 'button';
+  apply.className = 'calculator-apply';
+  apply.textContent = 'Apply';
+  apply.addEventListener('click', () => void applyCalculatorResult());
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = 'calculator-copy';
+  copy.textContent = 'Copy';
+  copy.addEventListener('click', () => void copyCalculatorResult(copy));
+  actions.append(keypadToggle, apply, copy);
+
+  main.append(expression, currencyRow, quick, resultRow, helper, actions);
+  return main;
+}
+
+function buildCalculatorKeypad(): HTMLDivElement {
   const keypad = document.createElement('div');
   keypad.className = 'calculator-keys';
-  const keys: Array<{ label: string; insert?: string; action?: 'clear' | 'backspace' | 'currency' }> = [
+  const keys: Array<{ label: string; insert?: string; action?: 'clear' | 'backspace' }> = [
     { label: '7', insert: '7' },
     { label: '8', insert: '8' },
     { label: '9', insert: '9' },
@@ -776,89 +1007,96 @@ function mountCalculatorPanel(): void {
     });
     keypad.appendChild(button);
   });
+  return keypad;
+}
 
-  const currencyRow = document.createElement('div');
-  currencyRow.className = 'calculator-currency-row';
-  const currencyButton = document.createElement('button');
-  currencyButton.type = 'button';
-  currencyButton.className = 'calculator-currency-button';
-  currencyButton.textContent = '+ Currency';
-  const currencyOptions = document.createElement('div');
-  currencyOptions.className = 'calculator-currency-options hidden';
-  renderCalculatorCurrencyOptions(currencyOptions);
-  currencyButton.addEventListener('mousedown', (event) => event.preventDefault());
-  currencyButton.addEventListener('click', () => currencyOptions.classList.toggle('hidden'));
-  currencyRow.append(currencyButton, currencyOptions);
+function buildCalculatorCurrencyPicker(): HTMLDivElement {
+  const pickerPanel = document.createElement('div');
+  pickerPanel.className = 'calculator-currency-picker';
 
-  const footer = document.createElement('div');
-  footer.className = 'calculator-footer';
-  const resultSelectLabel = document.createElement('label');
-  resultSelectLabel.className = 'calculator-result-select';
-  resultSelectLabel.appendChild(document.createTextNode('Result in'));
-  const resultSelect = document.createElement('select');
-  resultSelect.setAttribute('aria-label', 'Result currency');
-  const numberOption = document.createElement('option');
-  numberOption.value = '';
-  numberOption.textContent = 'Number';
-  resultSelect.appendChild(numberOption);
-  const resultCurrencies = Array.from(new Set([...favorites, ...SUPPORTED_CURRENCIES]));
-  resultCurrencies.forEach((code) => {
-    const option = document.createElement('option');
-    option.value = code;
-    option.textContent = code;
-    resultSelect.appendChild(option);
+  const search = document.createElement('input');
+  search.type = 'text';
+  search.value = calculatorState.currencySearch;
+  search.placeholder = 'Search currency...';
+  search.autocomplete = 'off';
+  search.addEventListener('input', () => {
+    calculatorState.currencySearch = search.value;
+    calculatorState.currencyPickerExpanded = Boolean(search.value.trim());
+    renderCalculatorCurrencyOptions(options);
   });
-  resultSelect.value = state.resultCurrency;
-  resultSelect.addEventListener('change', () => {
-    calculatorState.resultCurrency = resultSelect.value;
-    base.textContent = calculatorState.resultCurrency
-      ? `Numbers use ${calculatorState.resultCurrency}`
-      : 'No default currency';
-    scheduleCalculatorEvaluation();
-  });
-  resultSelectLabel.appendChild(resultSelect);
 
-  const output = document.createElement('div');
-  output.className = 'calculator-output';
-  output.setAttribute('aria-live', 'polite');
-  const error = document.createElement('div');
-  error.className = 'calculator-error';
-  error.setAttribute('role', 'status');
-  const actions = document.createElement('div');
-  actions.className = 'calculator-actions';
-  const apply = document.createElement('button');
-  apply.type = 'button';
-  apply.className = 'calculator-apply';
-  apply.textContent = 'Apply';
-  apply.addEventListener('click', () => void applyCalculatorResult());
-  const copy = document.createElement('button');
-  copy.type = 'button';
-  copy.className = 'calculator-copy';
-  copy.textContent = 'Copy';
-  copy.addEventListener('click', () => void copyCalculatorResult(copy));
-  actions.append(apply, copy);
-  footer.append(resultSelectLabel, output, error, actions);
-
-  panel.append(header, expression, keypad, currencyRow, footer);
-  calculatorRoot.appendChild(panel);
-  updateCalculatorOutput();
-  scheduleCalculatorEvaluation();
+  const options = document.createElement('div');
+  options.className = 'calculator-currency-options';
+  pickerPanel.append(search, options);
+  renderCalculatorCurrencyOptions(options);
+  window.setTimeout(() => search.focus(), 0);
+  return pickerPanel;
 }
 
 function renderCalculatorCurrencyOptions(container: HTMLDivElement): void {
+  container.innerHTML = '';
+  const term = calculatorState.currencySearch.trim().toLowerCase();
   const groupCurrencies = new Set(favorites);
   const ordered = [...favorites, ...SUPPORTED_CURRENCIES.filter((code) => !groupCurrencies.has(code))];
-  ordered.forEach((code) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = code;
-    button.className = groupCurrencies.has(code)
-      ? 'calculator-currency-option quick'
-      : 'calculator-currency-option';
-    button.addEventListener('mousedown', (event) => event.preventDefault());
-    button.addEventListener('click', () => insertCalculatorCurrency(code));
-    container.appendChild(button);
+  const matches = ordered.filter((code) => {
+    if (!term) return true;
+    const name = CURRENCY_NAMES[code] ?? code;
+    const aliases = CURRENCY_ALIASES[code] ?? [];
+    return (
+      code.toLowerCase().includes(term) ||
+      name.toLowerCase().includes(term) ||
+      aliases.some((alias) => alias.toLowerCase().includes(term))
+    );
   });
+  const visible = term || calculatorState.currencyPickerExpanded ? matches : matches.slice(0, 5);
+  visible.forEach((code) => {
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = 'calculator-currency-option';
+    const icon = document.createElement('span');
+    icon.className = 'currency-mark';
+    renderCurrencyIcon(icon, code);
+    const codeEl = document.createElement('span');
+    codeEl.className = 'calculator-currency-code';
+    codeEl.textContent = code;
+    const name = document.createElement('span');
+    name.className = 'calculator-currency-name';
+    name.textContent = CURRENCY_NAMES[code] ?? code;
+    option.append(icon, codeEl, name);
+    option.addEventListener('mousedown', (event) => event.preventDefault());
+    option.addEventListener('click', () => insertCalculatorCurrency(code));
+    container.appendChild(option);
+  });
+  if (!term && !calculatorState.currencyPickerExpanded && matches.length > visible.length) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'calculator-currency-more';
+    more.textContent = 'See more...';
+    more.addEventListener('click', () => {
+      calculatorState.currencyPickerExpanded = true;
+      renderCalculatorCurrencyOptions(container);
+    });
+    container.appendChild(more);
+  }
+}
+
+function getCalculatorResultCurrencies(): string[] {
+  return Array.from(
+    new Set([
+      calculatorState.resultCurrency,
+      calculatorState.defaultCurrency,
+      calculatorState.applyTargetCurrency,
+      ...favorites,
+      ...SUPPORTED_CURRENCIES
+    ].filter(Boolean))
+  );
+}
+
+function applyQuickTransform(transform: string): void {
+  const expression = calculatorState.expression.trim();
+  if (!expression) return;
+  const next = `(${expression})${transform}`;
+  replaceCalculatorExpression(next, next.length);
 }
 
 function rememberCalculatorCursor(input: HTMLInputElement): void {
@@ -901,19 +1139,6 @@ function backspaceCalculatorExpression(): void {
 
 function insertCalculatorCurrency(code: string): void {
   const state = calculatorState;
-  if (!state.resultCurrency) {
-    state.resultCurrency = code;
-    const resultSelect = calculatorRoot.querySelector<HTMLSelectElement>(
-      '.calculator-result-select select'
-    );
-    if (resultSelect) {
-      resultSelect.value = code;
-    }
-    const hint = calculatorRoot.querySelector<HTMLSpanElement>('.calculator-base');
-    if (hint) {
-      hint.textContent = `Numbers use ${code}`;
-    }
-  }
   const before = state.expression.slice(0, state.cursorStart);
   const after = state.expression.slice(state.cursorEnd);
   const numberMatch = before.match(/(\d+(?:[.,]\d*)?)(\s*)$/);
@@ -928,7 +1153,10 @@ function insertCalculatorCurrency(code: string): void {
     const text = `${leading}${code}${trailing}`;
     replaceCalculatorExpression(`${before}${text}${after}`, before.length + text.length);
   }
-  calculatorRoot.querySelector('.calculator-currency-options')?.classList.add('hidden');
+  state.currencyPickerOpen = false;
+  state.currencySearch = '';
+  state.currencyPickerExpanded = false;
+  calculatorRoot.querySelector('.calculator-currency-picker')?.remove();
 }
 
 function scheduleCalculatorEvaluation(): void {
@@ -966,8 +1194,11 @@ async function evaluateCalculator(showEmptyError = false): Promise<boolean> {
     return false;
   }
 
+  const defaultCurrency = state.defaultCurrency || resultCurrency;
   const targets = resultCurrency
-    ? normalizeCurrencyList(expressionCurrencies).filter((code) => code !== resultCurrency)
+    ? normalizeCurrencyList([...expressionCurrencies, defaultCurrency]).filter(
+        (code) => code !== resultCurrency
+      )
     : [];
   const requestId = ++calculatorRequestSeq;
   const rates: Record<string, number> = resultCurrency ? { [resultCurrency]: 1 } : {};
@@ -989,6 +1220,7 @@ async function evaluateCalculator(showEmptyError = false): Promise<boolean> {
   if (!isCurrentCalculatorRequest(state, expression, resultCurrency, requestId)) return false;
   try {
     state.result = evaluateCurrencyExpression(expression, {
+      defaultCurrency: defaultCurrency || null,
       resultCurrency: resultCurrency || null,
       rates
     });
@@ -1026,29 +1258,50 @@ function updateCalculatorOutput(): void {
   const panel = calculatorRoot.querySelector<HTMLElement>('.calculator-panel');
   if (!panel) return;
   const output = panel.querySelector<HTMLDivElement>('.calculator-output')!;
-  const error = panel.querySelector<HTMLDivElement>('.calculator-error')!;
+  const helper = panel.querySelector<HTMLDivElement>('.calculator-helper')!;
   const apply = panel.querySelector<HTMLButtonElement>('.calculator-apply')!;
   const copy = panel.querySelector<HTMLButtonElement>('.calculator-copy')!;
   if (state.result) {
     const suffix = state.result.currency ? ` ${state.result.currency}` : '';
-    output.textContent = `= ${formatNumber(state.result.value, settings.format)}${suffix}`;
+    output.textContent = `${formatNumber(state.result.value, settings.format)}${suffix}`;
   } else {
-    const suffix = state.resultCurrency ? ` ${state.resultCurrency}` : '';
-    output.textContent = `= --${suffix}`;
+    output.textContent = '—';
   }
-  error.textContent = state.error;
-  apply.disabled = !state.result || !state.result.currency;
+  helper.textContent = state.error || (!state.expression.trim() ? 'Enter an expression to calculate' : '');
+  helper.classList.toggle('calculator-helper-error', Boolean(state.error));
+  apply.disabled = !state.result || !state.result.currency || !state.applyTargetCurrency;
   copy.disabled = !state.result;
 }
 
 async function applyCalculatorResult(): Promise<void> {
   if (!(await evaluateCalculator(true)) || !calculatorState.result?.currency) return;
-  const code = calculatorState.result.currency;
+  const code = calculatorState.applyTargetCurrency || calculatorState.result.currency;
   if (!favorites.includes(code)) {
     setCalculatorError(`Add ${code} to this group to apply the result.`);
     return;
   }
-  const value = calculatorState.result.value;
+  let value = calculatorState.result.value;
+  if (calculatorState.result.currency !== code) {
+    try {
+      const response = await sendMessage<ConvertResponse>({
+        type: 'CONVERT',
+        payload: {
+          amount: value,
+          base: calculatorState.result.currency,
+          targets: [code]
+        }
+      });
+      const converted = response.conversions[code];
+      if (typeof converted !== 'number') {
+        setCalculatorError(`Missing exchange rate for ${code}.`);
+        return;
+      }
+      value = converted;
+    } catch (error) {
+      setCalculatorError(error instanceof Error ? error.message : 'Unable to apply result.');
+      return;
+    }
+  }
   values[code] = value;
   const input = rowMap.get(code)?.input;
   setActiveBase(code);
@@ -1057,6 +1310,7 @@ async function applyCalculatorResult(): Promise<void> {
     setInputDisplayValue(input, value);
   }
   await convertFromBase(code, value);
+  closeCalculator();
 }
 
 async function copyCalculatorResult(button: HTMLButtonElement): Promise<void> {

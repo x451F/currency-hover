@@ -14,6 +14,7 @@ export interface CalculatorToken {
 }
 
 export interface CurrencyExpressionOptions {
+  defaultCurrency: string | null;
   resultCurrency: string | null;
   /**
    * Conversion factors expressed as units of each currency per one unit of
@@ -26,6 +27,11 @@ export interface CurrencyExpressionResult {
   value: number;
   currency: string | null;
   currencies: string[];
+}
+
+interface EvaluatedValue {
+  value: number;
+  money: boolean;
 }
 
 const CURRENCY_ALIASES: Record<string, string> = {
@@ -115,11 +121,14 @@ export function evaluateCurrencyExpression(
   const resultCurrency = options.resultCurrency
     ? requireCurrency(options.resultCurrency)
     : null;
+  const defaultCurrency = options.defaultCurrency
+    ? requireCurrency(options.defaultCurrency)
+    : resultCurrency;
   const tokens = tokenizeExpression(expression);
   const currencies = Array.from(
     new Set(tokens.filter((token) => token.type === 'currency').map((token) => token.value))
   );
-  if (currencies.length && !resultCurrency) {
+  if ((currencies.length || defaultCurrency) && !resultCurrency) {
     throw new Error('Select a result currency for currency amounts.');
   }
   let position = 0;
@@ -136,7 +145,15 @@ export function evaluateCurrencyExpression(
     return amount / rate;
   };
 
-  const parsePrimary = (): number => {
+  const toDefaultCurrency = (value: EvaluatedValue): EvaluatedValue => {
+    if (value.money || !defaultCurrency) return value;
+    return {
+      value: convertToResultCurrency(value.value, defaultCurrency),
+      money: true
+    };
+  };
+
+  const parsePrimary = (): EvaluatedValue => {
     const token = peek();
     if (!token) {
       throw new Error('Expression is incomplete.');
@@ -149,9 +166,9 @@ export function evaluateCurrencyExpression(
       }
       const currencyToken = peek();
       if (currencyToken?.type === 'currency') {
-        return convertToResultCurrency(amount, consume().value);
+        return { value: convertToResultCurrency(amount, consume().value), money: true };
       }
-      return amount;
+      return { value: amount, money: false };
     }
     if (token.type === 'leftParen') {
       consume();
@@ -168,57 +185,75 @@ export function evaluateCurrencyExpression(
     throw new Error(`Unexpected "${token.value}".`);
   };
 
-  const parsePostfix = (): number => {
+  const parsePostfix = (): EvaluatedValue => {
     let value = parsePrimary();
     while (peek()?.type === 'percent') {
       consume();
-      value /= 100;
+      value = { ...value, value: value.value / 100 };
     }
     return value;
   };
 
-  const parseUnary = (): number => {
+  const parseUnary = (): EvaluatedValue => {
     const token = peek();
     if (token?.type === 'operator' && (token.value === '+' || token.value === '-')) {
       consume();
       const value = parseUnary();
-      return token.value === '-' ? -value : value;
+      return token.value === '-' ? { ...value, value: -value.value } : value;
     }
     return parsePostfix();
   };
 
-  const parseMultiplicative = (): number => {
+  const parseMultiplicative = (): EvaluatedValue => {
     let value = parseUnary();
     while (peek()?.type === 'operator' && (peek()?.value === '*' || peek()?.value === '/')) {
       const operator = consume().value;
       const right = parseUnary();
-      if (operator === '/' && right === 0) {
+      if (operator === '/' && right.value === 0) {
         throw new Error('Cannot divide by zero.');
       }
-      value = operator === '*' ? value * right : value / right;
+      value =
+        operator === '*'
+          ? {
+              value: value.value * right.value,
+              money: value.money || right.money
+            }
+          : {
+              value: value.value / right.value,
+              money: value.money && !right.money
+            };
     }
     return value;
   };
 
-  function parseAdditive(): number {
+  function parseAdditive(): EvaluatedValue {
     let value = parseMultiplicative();
     while (peek()?.type === 'operator' && (peek()?.value === '+' || peek()?.value === '-')) {
       const operator = consume().value;
       const right = parseMultiplicative();
-      value = operator === '+' ? value + right : value - right;
+      const leftMoney = value.money || right.money ? toDefaultCurrency(value) : value;
+      const rightMoney = value.money || right.money ? toDefaultCurrency(right) : right;
+      value = {
+        value:
+          operator === '+'
+            ? leftMoney.value + rightMoney.value
+            : leftMoney.value - rightMoney.value,
+        money: leftMoney.money || rightMoney.money
+      };
     }
     return value;
   }
 
-  const value = parseAdditive();
+  let result = parseAdditive();
   if (position < tokens.length) {
     throw new Error(`Unexpected "${tokens[position]!.value}".`);
   }
-  if (!Number.isFinite(value)) {
+  result = toDefaultCurrency(result);
+  if (!Number.isFinite(result.value)) {
     throw new Error('Result is not finite.');
   }
 
-  return { value, currency: resultCurrency, currencies };
+  return { value: result.value, currency: result.money ? resultCurrency : null, currencies };
 }
 
 function normalizeOperator(operator: string): string {
