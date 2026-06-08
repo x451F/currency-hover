@@ -2,7 +2,7 @@ import { renderCurrencyIcon } from '../shared/currencyIcon';
 import { applyTheme, type ThemeSetting } from '../shared/theme';
 
 const COPY_SVG =
-  '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><rect x="5" y="5" width="10" height="10" rx="2"></rect></svg>';
+  '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 5.5h6.5a2 2 0 0 1 2 2V14a2 2 0 0 1-2 2H15"></path><path d="M7.5 9h6.5a2 2 0 0 1 2 2v6.5a2 2 0 0 1-2 2H7.5a2 2 0 0 1-2-2V11a2 2 0 0 1 2-2Z"></path></svg>';
 const CHECK_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"></path></svg>';
 

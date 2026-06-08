@@ -59,7 +59,7 @@
   --bg: #f7f8fb;
   --panel: #ffffff;
   --card: #ffffff;
-  --row: #ffffff;
+  --row: #f7f8f7;
   --rowHover: #f1f5f9;
   --text: #1a1f1d;
   --muted: #5f6b66;
@@ -76,7 +76,7 @@
     --bg: #f7f8fb;
     --panel: #ffffff;
     --card: #ffffff;
-    --row: #ffffff;
+    --row: #f7f8f7;
     --rowHover: #f1f5f9;
     --text: #1a1f1d;
     --muted: #5f6b66;
@@ -161,6 +161,11 @@ body {
   transform: translateY(-1px);
 }
 
+.view {
+  display: grid;
+  gap: 12px;
+}
+
 .view.hidden {
   display: none;
 }
@@ -200,7 +205,7 @@ body {
 
 .converter-row {
   display: grid;
-  grid-template-columns: minmax(82px, auto) minmax(0, 1fr) 20px 20px;
+  grid-template-columns: minmax(82px, auto) minmax(0, 1fr) 20px;
   gap: 6px;
   align-items: center;
   padding: 8px 10px;
@@ -272,6 +277,20 @@ body {
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.calculator-launcher-icon .calculator-svg,
+.row-calculator-btn .calculator-svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  stroke: none;
+}
+
+.calculator-launcher-icon .calculator-svg path,
+.row-calculator-btn .calculator-svg path {
+  fill: currentColor;
+  stroke: none;
 }
 
 .calculator-launcher-copy {
@@ -688,6 +707,65 @@ body {
   box-shadow: inset 0 0 0 1px rgba(49, 208, 178, 0.08);
 }
 
+.drag-delete-zone {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  max-width: calc(100vw - 28px);
+  padding: 9px 14px;
+  border: 1px solid rgba(243, 107, 107, 0.38);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 90%, transparent);
+  color: var(--danger);
+  box-shadow: 0 16px 34px var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 8px) scale(0.96);
+  transition: opacity 140ms ease, transform 140ms ease, border-color 140ms ease,
+    background 140ms ease;
+}
+
+.drag-delete-zone.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.drag-delete-zone.active {
+  border-color: var(--danger);
+  background: rgba(243, 107, 107, 0.16);
+  transform: translate(-50%, -2px) scale(1.04);
+}
+
+.drag-delete-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drag-delete-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.drag-delete-label {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .currency-pill .code {
   color: var(--accent);
   letter-spacing: 0.3px;
@@ -752,7 +830,36 @@ body {
   padding: 0;
 }
 
-.copy-amount-btn,
+.copy-amount-btn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transform: scale(0.92);
+  transition: opacity 120ms ease, visibility 120ms ease, transform 120ms ease,
+    color 120ms ease, background 120ms ease;
+}
+
+.copy-amount-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .clear-amount-btn {
   width: 18px;
   height: 18px;
@@ -775,20 +882,10 @@ body {
     color 120ms ease, background 120ms ease;
 }
 
-.copy-amount-btn svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.amount-field-has-value:hover .copy-amount-btn,
-.amount-field-has-value:hover .clear-amount-btn,
-.converter-row:focus-within .amount-field-has-value .copy-amount-btn,
-.converter-row:focus-within .amount-field-has-value .clear-amount-btn {
+.converter-row:hover .copy-amount-btn,
+.converter-row:hover .clear-amount-btn,
+.converter-row:focus-within .copy-amount-btn,
+.converter-row:focus-within .clear-amount-btn {
   opacity: 1;
   pointer-events: auto;
   visibility: visible;
@@ -818,7 +915,8 @@ body {
   font-size: 13px;
 }
 
-.remove-btn {
+.remove-btn,
+.edit-remove-btn {
   border: none;
   background: transparent;
   color: var(--muted);
@@ -839,7 +937,8 @@ body {
   opacity: 1;
 }
 
-.remove-btn svg {
+.remove-btn svg,
+.edit-remove-btn svg {
   width: 15px;
   height: 15px;
   stroke: currentColor;
@@ -849,9 +948,20 @@ body {
   stroke-linejoin: round;
 }
 
-.remove-btn:hover {
+.remove-btn:hover,
+.edit-remove-btn:hover {
   color: var(--danger);
   background: rgba(243, 107, 107, 0.12);
+}
+
+.edit-remove-btn:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.edit-remove-btn:disabled:hover {
+  color: var(--muted);
+  background: transparent;
 }
 
 .inline-error {
@@ -873,6 +983,21 @@ body {
   padding: 6px 10px;
   font-size: 11px;
   cursor: pointer;
+}
+
+.danger-ghost.small {
+  border: 1px solid rgba(243, 107, 107, 0.34);
+  background: transparent;
+  color: var(--danger);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.danger-ghost.small:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .picker {
@@ -1002,6 +1127,10 @@ body {
   gap: 10px;
 }
 
+.view > .section + .section {
+  margin-top: 4px;
+}
+
 .section-title {
   font-size: 12px;
   color: var(--muted);
@@ -1010,7 +1139,8 @@ body {
 }
 
 .select,
-input[type='number'] {
+input[type='number'],
+.text-input {
   width: 100%;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -1018,6 +1148,11 @@ input[type='number'] {
   padding: 6px 8px;
   color: var(--text);
   font-size: 12px;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .setting-row {
@@ -1127,6 +1262,69 @@ input[type='number'] {
 .favorites-actions {
   display: flex;
   justify-content: flex-start;
+}
+
+.edit-actions,
+.edit-toolbar,
+.edit-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edit-actions {
+  justify-content: space-between;
+}
+
+.edit-toolbar {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.edit-toolbar-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.edit-currency-list {
+  display: grid;
+  gap: 7px;
+}
+
+.edit-currency-row {
+  display: grid;
+  grid-template-columns: 18px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 7px 9px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: var(--row);
+}
+
+.edit-currency-row:hover {
+  background: var(--rowHover);
+}
+
+.edit-currency-row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.edit-currency-name {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-replace-picker {
+  margin: -1px 0 3px 26px;
 }
 
 summary.section-title {

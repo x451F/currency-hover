@@ -26,18 +26,20 @@ import type { ConvertResponse, RefreshResponse } from '../background/messaging';
 const TRASH_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M6 6l1 14h10l1-14"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>';
 const COPY_SVG =
-  '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><rect x="5" y="5" width="10" height="10" rx="2"></rect></svg>';
+  '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 5.5h6.5a2 2 0 0 1 2 2V14a2 2 0 0 1-2 2H15"></path><path d="M7.5 9h6.5a2 2 0 0 1 2 2v6.5a2 2 0 0 1-2 2H7.5a2 2 0 0 1-2-2V11a2 2 0 0 1 2-2Z"></path></svg>';
 const CHECK_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"></path></svg>';
 const CALCULATOR_SVG =
-  '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M8 7h8"></path><path d="M8 11h2"></path><path d="M12 11h2"></path><path d="M16 11h.01"></path><path d="M8 15h2"></path><path d="M12 15h2"></path><path d="M16 15h.01"></path></svg>';
+  '<svg class="calculator-svg" viewBox="0 0 256 256" aria-hidden="true" focusable="false"><path d="M72 20h112c18 0 32 14 32 32v152c0 18-14 32-32 32H72c-18 0-32-14-32-32V52c0-18 14-32 32-32Zm8 36c-5 0-8 3-8 8v42c0 5 3 8 8 8h96c5 0 8-3 8-8V64c0-5-3-8-8-8H80Zm8 90a16 16 0 1 0 0 32 16 16 0 0 0 0-32Zm40 0a16 16 0 1 0 0 32 16 16 0 0 0 0-32Zm40 0a16 16 0 1 0 0 32 16 16 0 0 0 0-32Zm-80 44a16 16 0 1 0 0 32 16 16 0 0 0 0-32Zm40 0a16 16 0 1 0 0 32 16 16 0 0 0 0-32Zm40 0a16 16 0 1 0 0 32 16 16 0 0 0 0-32Z"></path></svg>';
 
 const openSettingsBtn = document.querySelector<HTMLButtonElement>('#open-settings')!;
 const openHistoryBtn = document.querySelector<HTMLButtonElement>('#open-history')!;
 const converterView = document.querySelector<HTMLDivElement>('#converter-view')!;
+const editView = document.querySelector<HTMLDivElement>('#edit-view')!;
 const settingsView = document.querySelector<HTMLDivElement>('#settings-view')!;
 const historyView = document.querySelector<HTMLDivElement>('#history-view')!;
 const backBtn = document.querySelector<HTMLButtonElement>('#back')!;
+const editBackBtn = document.querySelector<HTMLButtonElement>('#edit-back')!;
 const historyBackBtn = document.querySelector<HTMLButtonElement>('#history-back')!;
 
 const converterList = document.querySelector<HTMLDivElement>('#converter-list')!;
@@ -54,6 +56,18 @@ const calculatorRoot = document.querySelector<HTMLDivElement>('#calculator-root'
 const groupSwitcher = document.querySelector<HTMLDivElement>('#group-switcher')!;
 const groupSelect = document.querySelector<HTMLSelectElement>('#group-select')!;
 const manageGroupsBtn = document.querySelector<HTMLButtonElement>('#manage-groups')!;
+const editGroupSelect = document.querySelector<HTMLSelectElement>('#edit-group-select')!;
+const editGroupName = document.querySelector<HTMLInputElement>('#edit-group-name')!;
+const editAddGroupBtn = document.querySelector<HTMLButtonElement>('#edit-add-group')!;
+const editDeleteGroupBtn = document.querySelector<HTMLButtonElement>('#edit-delete-group')!;
+const editSelectedCount = document.querySelector<HTMLDivElement>('#edit-selected-count')!;
+const editSelectAllBtn = document.querySelector<HTMLButtonElement>('#edit-select-all')!;
+const editDeleteSelectedBtn = document.querySelector<HTMLButtonElement>('#edit-delete-selected')!;
+const editCurrencyList = document.querySelector<HTMLDivElement>('#edit-currency-list')!;
+const editAddCurrencyBtn = document.querySelector<HTMLButtonElement>('#edit-add-currency-btn')!;
+const editCurrencyPicker = document.querySelector<HTMLDivElement>('#edit-currency-picker')!;
+const editCurrencySearch = document.querySelector<HTMLInputElement>('#edit-currency-search')!;
+const editCurrencyOptions = document.querySelector<HTMLDivElement>('#edit-currency-options')!;
 
 const themeSelect = document.querySelector<HTMLSelectElement>('#theme')!;
 const favoritesList = document.querySelector<HTMLDivElement>('#favorites-list')!;
@@ -149,6 +163,7 @@ let requestSeq = 0;
 let historySettings = { enabled: false, maxItems: 200 };
 let pendingHistory = false;
 let replacingCode: string | null = null;
+const editSelected = new Set<string>();
 const calculatorState: {
   isOpen: boolean;
   keypadVisible: boolean;
@@ -188,6 +203,8 @@ let dragState: {
   startX: number;
   width: number;
   placeholder: HTMLDivElement;
+  deleteZone: HTMLDivElement | null;
+  overDelete: boolean;
 } | null = null;
 
 const rowMap = new Map<
@@ -214,6 +231,7 @@ async function init(): Promise<void> {
     initializeFavorites();
     renderConverter();
     renderSettings();
+    renderEditView();
     void renderHistory();
   });
 
@@ -228,6 +246,7 @@ async function init(): Promise<void> {
   openSettingsBtn.addEventListener('click', () => switchView('settings'));
   openHistoryBtn.addEventListener('click', () => switchView('history'));
   backBtn.addEventListener('click', () => switchView('converter'));
+  editBackBtn.addEventListener('click', () => switchView('converter'));
   historyBackBtn.addEventListener('click', () => switchView('converter'));
 
   addCurrencyBtn.addEventListener('click', () => {
@@ -236,10 +255,37 @@ async function init(): Promise<void> {
     togglePicker(picker);
   });
   favoritesAddBtn.addEventListener('click', () => togglePicker(favoritesPicker));
-  manageGroupsBtn.addEventListener('click', () => switchView('settings'));
+  manageGroupsBtn.addEventListener('click', () => {
+    editSelected.clear();
+    replacingCode = null;
+    hidePicker(picker);
+    switchView('edit');
+  });
+
+  editGroupSelect.addEventListener('change', () => {
+    editSelected.clear();
+    replacingCode = null;
+    activateGroup(editGroupSelect.value);
+  });
+  editGroupName.addEventListener('change', () => renameActiveGroup(editGroupName.value));
+  editGroupName.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    editGroupName.blur();
+  });
+  editAddGroupBtn.addEventListener('click', createGroup);
+  editDeleteGroupBtn.addEventListener('click', deleteActiveGroup);
+  editSelectAllBtn.addEventListener('click', toggleEditSelection);
+  editDeleteSelectedBtn.addEventListener('click', removeSelectedFavorites);
+  editAddCurrencyBtn.addEventListener('click', () => {
+    replacingCode = null;
+    renderEditView();
+    togglePicker(editCurrencyPicker);
+  });
 
   setupPicker(pickerSearch, pickerOptions, (code) => addFavorite(code));
   setupPicker(favoritesSearch, favoritesOptions, (code) => addFavorite(code));
+  setupPicker(editCurrencySearch, editCurrencyOptions, (code) => addFavorite(code));
 
   detectToggle.addEventListener('change', () => {
     void setSettings({ detectCurrency: detectToggle.checked });
@@ -286,14 +332,7 @@ async function init(): Promise<void> {
   });
 
   groupSelect.addEventListener('change', () => {
-    if (!favoritesGroups) return;
-    favoritesGroups = {
-      ...favoritesGroups,
-      activeId: groupSelect.value
-    };
-    const active = favoritesGroups.groups.find((group) => group.id === favoritesGroups?.activeId);
-    const groupFavorites = active?.favorites?.length ? active.favorites : favorites;
-    void setSettings({ favoritesGroups, favorites: groupFavorites, targets: groupFavorites });
+    activateGroup(groupSelect.value);
   });
 
   groupAddBtn.addEventListener('click', () => {
@@ -415,13 +454,18 @@ async function init(): Promise<void> {
     if (!favoritesPicker.contains(event.target as Node) && event.target !== favoritesAddBtn) {
       hidePicker(favoritesPicker);
     }
+    if (!editCurrencyPicker.contains(event.target as Node) && event.target !== editAddCurrencyBtn) {
+      hidePicker(editCurrencyPicker);
+    }
     if (
       replacingCode &&
       !target?.closest('.replace-picker') &&
-      !target?.closest('.currency-pill')
+      !target?.closest('.currency-pill') &&
+      !target?.closest('.edit-remove-btn')
     ) {
       replacingCode = null;
       renderConverter();
+      renderEditView();
     }
   });
 
@@ -442,6 +486,13 @@ async function init(): Promise<void> {
     if (event.key === 'Escape') {
       hidePicker(favoritesPicker);
       favoritesAddBtn.focus();
+    }
+  });
+
+  editCurrencySearch.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      hidePicker(editCurrencyPicker);
+      editAddCurrencyBtn.focus();
     }
   });
 }
@@ -473,10 +524,14 @@ async function restoreLastPopupAmount(): Promise<void> {
   values[last.base] = last.amount;
 }
 
-function switchView(view: 'converter' | 'settings' | 'history'): void {
+function switchView(view: 'converter' | 'edit' | 'settings' | 'history'): void {
   converterView.classList.toggle('hidden', view !== 'converter');
+  editView.classList.toggle('hidden', view !== 'edit');
   settingsView.classList.toggle('hidden', view !== 'settings');
   historyView.classList.toggle('hidden', view !== 'history');
+  if (view === 'edit') {
+    renderEditView();
+  }
   if (view === 'history') {
     void renderHistory();
   }
@@ -561,14 +616,6 @@ function renderConverter(): void {
     amountField.append(copyAmount, input, clearAmount);
     amountField.classList.toggle('amount-field-has-value', values[code] !== undefined);
 
-    const remove = document.createElement('button');
-    remove.className = 'remove-btn';
-    remove.type = 'button';
-    remove.innerHTML = TRASH_SVG;
-    remove.setAttribute('aria-label', `Remove ${code}`);
-    remove.title = `Remove ${code}`;
-    remove.addEventListener('click', () => removeFavorite(code));
-
     const calculator = document.createElement('button');
     calculator.className = 'row-calculator-btn';
     calculator.type = 'button';
@@ -615,7 +662,7 @@ function renderConverter(): void {
     left.className = 'row-left row-grab';
     left.append(dragHandle, pill);
 
-    row.append(left, amountField, calculator, remove);
+    row.append(left, amountField, calculator);
     converterList.appendChild(row);
     rowMap.set(code, { row, input });
 
@@ -633,10 +680,7 @@ function renderConverter(): void {
 }
 
 function updateGroupSwitcher(): void {
-  if (
-    !favoritesGroups ||
-    favoritesGroups.groups.length <= 1
-  ) {
+  if (!favoritesGroups?.groups.length) {
     groupSwitcher.classList.add('hidden');
     return;
   }
@@ -713,6 +757,234 @@ function renderSettings(): void {
   });
 
   renderGroups();
+}
+
+function renderEditView(): void {
+  if (editView.classList.contains('hidden')) return;
+  if (!favoritesGroups?.groups.length) {
+    favoritesGroups = updateGroupsFromFavorites(null, favorites);
+  }
+
+  const activeGroup = getActiveGroup();
+  if (!activeGroup) return;
+
+  editSelected.forEach((code) => {
+    if (!favorites.includes(code)) {
+      editSelected.delete(code);
+    }
+  });
+
+  editGroupSelect.innerHTML = '';
+  favoritesGroups.groups.forEach((group) => {
+    const option = document.createElement('option');
+    option.value = group.id;
+    option.textContent = group.name;
+    editGroupSelect.appendChild(option);
+  });
+  editGroupSelect.value = favoritesGroups.activeId;
+  editGroupName.value = activeGroup.name;
+  editDeleteGroupBtn.disabled = favoritesGroups.groups.length <= 1;
+
+  editCurrencyList.innerHTML = '';
+  favorites.forEach((code) => {
+    const row = document.createElement('div');
+    row.className = 'edit-currency-row';
+    row.dataset['code'] = code;
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = editSelected.has(code);
+    checkbox.setAttribute('aria-label', `Select ${code}`);
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) {
+        editSelected.add(code);
+      } else {
+        editSelected.delete(code);
+      }
+      renderEditView();
+    });
+
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'currency-pill';
+    pill.setAttribute('aria-label', `Change ${code}`);
+    const flag = document.createElement('span');
+    flag.className = 'currency-mark';
+    renderCurrencyIcon(flag, code);
+    const label = document.createElement('span');
+    label.className = 'code';
+    label.textContent = code;
+    pill.append(flag, label);
+    pill.addEventListener('click', () => {
+      replacingCode = replacingCode === code ? null : code;
+      hidePicker(editCurrencyPicker);
+      renderEditView();
+    });
+
+    const name = document.createElement('div');
+    name.className = 'edit-currency-name';
+    name.textContent = CURRENCY_NAMES[code] ?? code;
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'edit-remove-btn';
+    remove.innerHTML = TRASH_SVG;
+    remove.disabled = favorites.length <= 1;
+    remove.setAttribute('aria-label', `Remove ${code}`);
+    remove.title = favorites.length <= 1 ? 'Keep at least one currency' : `Remove ${code}`;
+    remove.addEventListener('click', () => {
+      removeFavorite(code);
+    });
+
+    row.append(checkbox, pill, name, remove);
+    editCurrencyList.appendChild(row);
+
+    if (replacingCode === code) {
+      const replacePicker = buildReplacePicker(code);
+      replacePicker.classList.add('edit-replace-picker');
+      editCurrencyList.appendChild(replacePicker);
+    }
+  });
+
+  const selectedCount = Array.from(editSelected).filter((code) => favorites.includes(code)).length;
+  const allSelected = favorites.length > 0 && selectedCount === favorites.length;
+  editSelectedCount.textContent =
+    selectedCount === 0
+      ? 'No currencies selected'
+      : `${selectedCount} selected`;
+  editSelectAllBtn.textContent = allSelected ? 'Clear' : 'Select all';
+  editDeleteSelectedBtn.disabled = selectedCount === 0 || selectedCount >= favorites.length;
+  editDeleteSelectedBtn.title =
+    selectedCount >= favorites.length ? 'Keep at least one currency in a group' : '';
+}
+
+function getActiveGroup(): FavoritesGroups['groups'][number] | null {
+  if (!favoritesGroups?.groups.length) return null;
+  return (
+    favoritesGroups.groups.find((group) => group.id === favoritesGroups?.activeId) ??
+    favoritesGroups.groups[0] ??
+    null
+  );
+}
+
+function activateGroup(groupId: string): void {
+  if (!favoritesGroups) return;
+  const active = favoritesGroups.groups.find((group) => group.id === groupId);
+  if (!active) return;
+  favoritesGroups = {
+    ...favoritesGroups,
+    activeId: active.id
+  };
+  favorites = active.favorites.length ? [...active.favorites] : [...DEFAULT_FAVORITES];
+  if (!favorites.includes(activeBase)) {
+    activeBase = favorites[0] ?? activeBase;
+  }
+  void setSettings({
+    baseCurrency: activeBase,
+    favoritesGroups,
+    favorites,
+    targets: favorites
+  });
+  renderConverter();
+  renderSettings();
+  renderEditView();
+}
+
+function renameActiveGroup(rawName: string): void {
+  if (!favoritesGroups) return;
+  const name = rawName.trim();
+  const active = getActiveGroup();
+  if (!active) return;
+  if (!name || name === active.name) {
+    editGroupName.value = active.name;
+    return;
+  }
+  const nextGroups = favoritesGroups.groups.map((group) =>
+    group.id === active.id ? { ...group, name } : group
+  );
+  favoritesGroups = { ...favoritesGroups, groups: nextGroups };
+  void setSettings({ favoritesGroups });
+  renderConverter();
+  renderEditView();
+}
+
+function createGroup(): void {
+  const name = prompt('Group name', 'New group');
+  if (!name?.trim()) return;
+  const id = `group-${Date.now().toString(36)}`;
+  const nextFavorites = favorites.length ? [...favorites] : [...DEFAULT_FAVORITES];
+  const currentGroups = favoritesGroups?.groups ?? [];
+  favoritesGroups = {
+    activeId: id,
+    groups: [
+      ...currentGroups,
+      {
+        id,
+        name: name.trim(),
+        favorites: nextFavorites
+      }
+    ]
+  };
+  favorites = nextFavorites;
+  editSelected.clear();
+  void setSettings({
+    baseCurrency: activeBase,
+    favoritesGroups,
+    favorites,
+    targets: favorites
+  });
+  renderConverter();
+  renderSettings();
+  renderEditView();
+}
+
+function deleteActiveGroup(): void {
+  if (!favoritesGroups || favoritesGroups.groups.length <= 1) return;
+  const active = getActiveGroup();
+  if (!active) return;
+  const confirmed = confirm(`Delete "${active.name}"?`);
+  if (!confirmed) return;
+
+  const nextGroups = favoritesGroups.groups.filter((group) => group.id !== active.id);
+  const nextActive = nextGroups[0];
+  favoritesGroups = {
+    activeId: nextActive.id,
+    groups: nextGroups
+  };
+  favorites = nextActive.favorites.length ? [...nextActive.favorites] : [...DEFAULT_FAVORITES];
+  if (!favorites.includes(activeBase)) {
+    activeBase = favorites[0] ?? activeBase;
+  }
+  editSelected.clear();
+  replacingCode = null;
+  void setSettings({
+    baseCurrency: activeBase,
+    favoritesGroups,
+    favorites,
+    targets: favorites
+  });
+  renderConverter();
+  renderSettings();
+  renderEditView();
+}
+
+function toggleEditSelection(): void {
+  const selectedCount = Array.from(editSelected).filter((code) => favorites.includes(code)).length;
+  if (selectedCount === favorites.length) {
+    editSelected.clear();
+  } else {
+    favorites.forEach((code) => editSelected.add(code));
+  }
+  renderEditView();
+}
+
+function removeSelectedFavorites(): void {
+  const selected = Array.from(editSelected).filter((code) => favorites.includes(code));
+  if (!selected.length || selected.length >= favorites.length) return;
+  persistFavorites(favorites.filter((code) => !editSelected.has(code)));
+  editSelected.clear();
+  replacingCode = null;
+  renderEditView();
 }
 
 function setActiveBase(code: string): void {
@@ -1336,6 +1608,7 @@ function startPointerDrag(event: PointerEvent, code: string, row: HTMLDivElement
   placeholder.className = 'drag-placeholder';
   placeholder.style.height = `${rect.height}px`;
   converterList.insertBefore(placeholder, row.nextSibling);
+  const deleteZone = favorites.length > 1 ? createDragDeleteZone(code) : null;
   dragState = {
     code,
     row,
@@ -1343,7 +1616,9 @@ function startPointerDrag(event: PointerEvent, code: string, row: HTMLDivElement
     offsetY: event.clientY - rect.top,
     startX: rect.left,
     width: rect.width,
-    placeholder
+    placeholder,
+    deleteZone,
+    overDelete: false
   };
   row.setPointerCapture(event.pointerId);
   row.classList.add('dragging');
@@ -1360,6 +1635,9 @@ function updatePointerDrag(event: PointerEvent): void {
   row.style.top = `${event.clientY - offsetY}px`;
   row.style.width = `${width}px`;
 
+  updateDragDeleteZone(event.clientX, event.clientY);
+  if (dragState.overDelete) return;
+
   const targetRow = getDropTarget(row, event.clientY) ?? getEdgeDropTarget(event.clientY);
   if (!targetRow) return;
   const targetRect = targetRow.getBoundingClientRect();
@@ -1374,21 +1652,78 @@ function updatePointerDrag(event: PointerEvent): void {
 
 function endPointerDrag(event: PointerEvent): void {
   if (!dragState || event.pointerId !== dragState.pointerId) return;
-  const { row, pointerId, placeholder } = dragState;
+  updateDragDeleteZone(event.clientX, event.clientY);
+  const { code, row, pointerId, placeholder, overDelete } = dragState;
   try {
     row.releasePointerCapture(pointerId);
   } catch {
     // Already released by the browser.
   }
-  converterList.insertBefore(row, placeholder);
+  if (!overDelete) {
+    converterList.insertBefore(row, placeholder);
+  }
   placeholder.remove();
   row.classList.remove('dragging');
   row.style.left = '';
   row.style.top = '';
   row.style.width = '';
   row.style.transform = '';
+  removeDragDeleteZone();
   dragState = null;
+  if (overDelete) {
+    row.remove();
+    removeFavorite(code);
+    return;
+  }
   persistDraggedOrder();
+}
+
+function createDragDeleteZone(code: string): HTMLDivElement {
+  const zone = document.createElement('div');
+  zone.className = 'drag-delete-zone';
+  zone.setAttribute('role', 'status');
+  zone.setAttribute('aria-live', 'polite');
+
+  const icon = document.createElement('span');
+  icon.className = 'drag-delete-icon';
+  icon.innerHTML = TRASH_SVG;
+
+  const label = document.createElement('span');
+  label.className = 'drag-delete-label';
+  label.textContent = `Drop ${code} to remove`;
+
+  zone.append(icon, label);
+  document.body.appendChild(zone);
+  positionDragDeleteZone(zone);
+  window.requestAnimationFrame(() => zone.classList.add('visible'));
+  return zone;
+}
+
+function positionDragDeleteZone(zone: HTMLDivElement): void {
+  const app = document.querySelector<HTMLElement>('.app');
+  const appRect = app?.getBoundingClientRect();
+  if (!appRect) return;
+  zone.style.left = `${appRect.left + appRect.width / 2}px`;
+  zone.style.bottom = `${Math.max(14, window.innerHeight - appRect.bottom + 14)}px`;
+}
+
+function updateDragDeleteZone(clientX: number, clientY: number): void {
+  if (!dragState?.deleteZone) return;
+  const rect = dragState.deleteZone.getBoundingClientRect();
+  const appRect = document.querySelector<HTMLElement>('.app')?.getBoundingClientRect();
+  const horizontalMin = appRect?.left ?? rect.left;
+  const horizontalMax = appRect?.right ?? rect.right;
+  const overDelete =
+    clientX >= horizontalMin &&
+    clientX <= horizontalMax &&
+    clientY >= rect.top - 28 &&
+    clientY <= rect.bottom + 28;
+  dragState.overDelete = overDelete;
+  dragState.deleteZone.classList.toggle('active', overDelete);
+}
+
+function removeDragDeleteZone(): void {
+  dragState?.deleteZone?.remove();
 }
 
 function getDropTarget(draggedRow: HTMLDivElement, clientY: number): HTMLDivElement | null {
@@ -1689,7 +2024,7 @@ function applyFeatureAvailability(): void {
   copyDecimals.readOnly = false;
   copyIncludeSymbol.disabled = false;
 
-  groupsSection.classList.remove('hidden');
+  groupsSection.classList.add('hidden');
   clearHistoryBtn.disabled = false;
   historyEnabledToggle.disabled = false;
   historyMaxInput.disabled = false;
@@ -1912,14 +2247,10 @@ function addFavorite(code: string): void {
   if (!isSupportedCurrency(code)) return;
   if (favorites.includes(code)) return;
   replacingCode = null;
-  favorites = normalizeCurrencyList([...favorites, code]);
-  const nextGroups = updateGroupsFromFavorites(favoritesGroups, favorites);
-  favoritesGroups = nextGroups;
-  void setSettings({ favorites, targets: favorites, favoritesGroups: nextGroups });
+  persistFavorites([...favorites, code]);
   hidePicker(picker);
   hidePicker(favoritesPicker);
-  renderConverter();
-  renderSettings();
+  hidePicker(editCurrencyPicker);
 }
 
 function removeFavorite(code: string): void {
@@ -1927,12 +2258,7 @@ function removeFavorite(code: string): void {
   if (replacingCode === code) {
     replacingCode = null;
   }
-  favorites = favorites.filter((item) => item !== code);
-  const nextGroups = updateGroupsFromFavorites(favoritesGroups, favorites);
-  favoritesGroups = nextGroups;
-  void setSettings({ favorites, targets: favorites, favoritesGroups: nextGroups });
-  renderConverter();
-  renderSettings();
+  persistFavorites(favorites.filter((item) => item !== code));
 }
 
 function moveFavorite(index: number, delta: number): void {
@@ -1941,12 +2267,40 @@ function moveFavorite(index: number, delta: number): void {
   if (targetIndex < 0 || targetIndex >= next.length) return;
   const [item] = next.splice(index, 1);
   next.splice(targetIndex, 0, item);
-  favorites = next;
+  persistFavorites(next);
+}
+
+function persistFavorites(nextFavorites: string[]): void {
+  const normalized = normalizeCurrencyList(nextFavorites);
+  if (!normalized.length) return;
+  const removed = favorites.filter((code) => !normalized.includes(code));
+  removed.forEach((code) => {
+    delete values[code];
+    editSelected.delete(code);
+  });
+  favorites = normalized;
+  if (!favorites.includes(activeBase)) {
+    activeBase = favorites[0];
+    editingCode = null;
+  }
+  if (replacingCode && !favorites.includes(replacingCode)) {
+    replacingCode = null;
+  }
   const nextGroups = updateGroupsFromFavorites(favoritesGroups, favorites);
   favoritesGroups = nextGroups;
-  void setSettings({ favorites, targets: favorites, favoritesGroups: nextGroups });
+  void setSettings({
+    baseCurrency: activeBase,
+    favorites,
+    targets: favorites,
+    favoritesGroups: nextGroups
+  });
   renderConverter();
   renderSettings();
+  renderEditView();
+  const amount = values[activeBase];
+  if (amount !== undefined) {
+    scheduleConvert(activeBase, amount);
+  }
 }
 
 function setupPicker(
@@ -2045,6 +2399,7 @@ function replaceFavorite(codeToReplace: string, nextCode: string): void {
   const nextFavorites = favorites.map((code) => (code === codeToReplace ? nextCode : code));
   const previousAmount = values[codeToReplace];
   delete values[codeToReplace];
+  editSelected.delete(codeToReplace);
   if (activeBase === codeToReplace) {
     activeBase = nextCode;
     editingCode = editingCode === codeToReplace ? nextCode : editingCode;
@@ -2053,23 +2408,8 @@ function replaceFavorite(codeToReplace: string, nextCode: string): void {
     }
   }
 
-  favorites = normalizeCurrencyList(nextFavorites);
-  const nextGroups = updateGroupsFromFavorites(favoritesGroups, favorites);
-  favoritesGroups = nextGroups;
   replacingCode = null;
-  void setSettings({
-    baseCurrency: activeBase,
-    favorites,
-    targets: favorites,
-    favoritesGroups: nextGroups
-  });
-  renderConverter();
-  renderSettings();
-
-  const amount = values[activeBase];
-  if (amount !== undefined) {
-    scheduleConvert(activeBase, amount);
-  }
+  persistFavorites(nextFavorites);
 }
 
 function togglePicker(container: HTMLDivElement): void {

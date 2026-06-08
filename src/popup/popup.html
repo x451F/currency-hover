@@ -35,7 +35,7 @@
         <div id="group-switcher" class="group-switcher hidden">
           <label for="group-select">Group</label>
           <select id="group-select" class="select"></select>
-          <button id="manage-groups" class="ghost small" type="button">Manage</button>
+          <button id="manage-groups" class="ghost small" type="button">Edit</button>
         </div>
         <div class="card">
           <div id="converter-list" class="converter-list"></div>
@@ -80,6 +80,62 @@
         <div id="calculator-root" class="calculator-root"></div>
       </section>
 
+      <section id="edit-view" class="view hidden">
+        <div class="settings-header">
+          <button id="edit-back" class="icon-btn" type="button" aria-label="Back">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M19 12H5"></path>
+              <path d="M12 19l-7-7 7-7"></path>
+            </svg>
+          </button>
+          <div class="settings-title">Edit group</div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Group</div>
+          <select id="edit-group-select" class="select"></select>
+          <input
+            id="edit-group-name"
+            type="text"
+            class="text-input"
+            placeholder="Group name"
+            autocomplete="off"
+          />
+          <div class="edit-actions">
+            <button id="edit-add-group" class="ghost small" type="button">+ New group</button>
+            <button id="edit-delete-group" class="danger-ghost small" type="button">Delete group</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="edit-toolbar">
+            <div>
+              <div class="section-title">Currencies</div>
+              <div id="edit-selected-count" class="helper-text">No currencies selected</div>
+            </div>
+            <div class="edit-toolbar-actions">
+              <button id="edit-select-all" class="ghost small" type="button">Select all</button>
+              <button id="edit-delete-selected" class="danger-ghost small" type="button">
+                Delete selected
+              </button>
+            </div>
+          </div>
+          <div id="edit-currency-list" class="edit-currency-list"></div>
+          <div class="favorites-actions">
+            <button id="edit-add-currency-btn" class="ghost small" type="button">+ Add currency</button>
+          </div>
+          <div id="edit-currency-picker" class="picker hidden">
+            <input
+              id="edit-currency-search"
+              type="text"
+              placeholder="Search currency..."
+              autocomplete="off"
+            />
+            <div id="edit-currency-options" class="picker-options"></div>
+          </div>
+        </div>
+      </section>
+
       <section id="settings-view" class="view hidden">
         <div class="settings-header">
           <button id="back" class="icon-btn" type="button" aria-label="Back">
@@ -100,7 +156,7 @@
           </select>
         </div>
 
-        <div class="section">
+        <div class="section hidden">
           <div class="section-title">Favorites</div>
           <div id="favorites-list" class="favorites-list"></div>
           <div class="favorites-actions">
