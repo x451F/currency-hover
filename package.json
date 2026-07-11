@@ -4,13 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite build --watch",
-    "build": "vite build && vite build --config vite.content.config.ts",
+    "dev": "pnpm run build:chrome && EXTENSION_OUT_DIR=dist/chrome vite build --watch",
+    "build": "pnpm run build:chrome",
+    "build:chrome": "node scripts/build-extension.mjs chrome",
+    "build:firefox": "node scripts/build-extension.mjs firefox",
+    "build:all": "node scripts/build-extension.mjs all",
     "lint": "eslint . --ext .ts",
     "test": "vitest run --config vitest.config.ts"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.251",
+    "@types/node": "^26.1.1",
     "@typescript-eslint/eslint-plugin": "^7.12.0",
     "@typescript-eslint/parser": "^7.12.0",
     "eslint": "^8.57.0",

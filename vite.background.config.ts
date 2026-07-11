@@ -10,15 +10,15 @@ export default defineConfig({
     outDir,
     emptyOutDir: false,
     lib: {
-      entry: resolve(__dirname, 'src/content/index.ts'),
+      entry: resolve(__dirname, 'src/background/index.ts'),
       formats: ['iife'],
-      name: 'CurrencyHoverContent',
-      fileName: () => 'content.js'
+      name: 'CurrencyHoverBackground',
+      fileName: () => 'background.js'
     },
     rollupOptions: {
       output: {
         inlineDynamicImports: true,
-        entryFileNames: 'content.js',
+        entryFileNames: 'background.js',
         chunkFileNames: 'chunks/[name].js',
         assetFileNames: 'assets/[name][extname]'
       }

@@ -15,6 +15,7 @@ import {
   normalizeCurrencyList,
   sanitizeSettings
 } from './settings';
+import { addStorageChangedListener, storageGet, storageRemove, storageSet } from './extensionApi';
 
 export interface RatesCacheEntry {
   base: string;
@@ -62,7 +63,7 @@ const DEFAULT_HISTORY_SETTINGS: HistorySettings = {
 };
 
 export async function getSettings(): Promise<Settings> {
-  const stored = await chrome.storage.sync.get(SETTINGS_KEY);
+  const stored = await safeStorageGet('sync', SETTINGS_KEY);
   const merged = mergeSettings(stored[SETTINGS_KEY] as Partial<Settings> | undefined);
   return sanitizeSettings(merged);
 }
@@ -85,26 +86,26 @@ export async function setSettings(patch: SettingsPatch): Promise<Settings> {
       ...(patch.copy ?? {})
     }
   });
-  await chrome.storage.sync.set({ [SETTINGS_KEY]: next });
+  await storageSet('sync', { [SETTINGS_KEY]: next });
   return next;
 }
 
 export async function ensureSettings(): Promise<Settings> {
-  const stored = await chrome.storage.sync.get(SETTINGS_KEY);
+  const stored = await safeStorageGet('sync', SETTINGS_KEY);
   if (!stored[SETTINGS_KEY]) {
-    await chrome.storage.sync.set({ [SETTINGS_KEY]: DEFAULT_SETTINGS });
+    await safeStorageSet('sync', { [SETTINGS_KEY]: DEFAULT_SETTINGS });
     return DEFAULT_SETTINGS;
   }
   const merged = mergeSettings(stored[SETTINGS_KEY] as Partial<Settings> | undefined);
   const sanitized = sanitizeSettings(merged);
   if (JSON.stringify(sanitized) !== JSON.stringify(stored[SETTINGS_KEY])) {
-    await chrome.storage.sync.set({ [SETTINGS_KEY]: sanitized });
+    await safeStorageSet('sync', { [SETTINGS_KEY]: sanitized });
   }
   return sanitized;
 }
 
 export function onSettingsChanged(callback: (settings: Settings) => void): void {
-  chrome.storage.onChanged.addListener((changes, area) => {
+  addStorageChangedListener((changes, area) => {
     if (area !== 'sync' || !changes[SETTINGS_KEY]) return;
     const next = mergeSettings(changes[SETTINGS_KEY].newValue as Partial<Settings> | undefined);
     callback(sanitizeSettings(next));
@@ -112,7 +113,7 @@ export function onSettingsChanged(callback: (settings: Settings) => void): void 
 }
 
 export async function getRatesCache(): Promise<RatesCache> {
-  const stored = await chrome.storage.local.get(RATES_CACHE_KEY);
+  const stored = await safeStorageGet('local', RATES_CACHE_KEY);
   return (stored[RATES_CACHE_KEY] as RatesCache | undefined) ?? {};
 }
 
@@ -124,28 +125,28 @@ export async function getRatesCacheEntry(base: string): Promise<RatesCacheEntry 
 export async function setRatesCacheEntry(entry: RatesCacheEntry): Promise<void> {
   const cache = await getRatesCache();
   cache[entry.base] = entry;
-  await chrome.storage.local.set({ [RATES_CACHE_KEY]: cache });
+  await safeStorageSet('local', { [RATES_CACHE_KEY]: cache });
 }
 
 export async function clearRatesCache(): Promise<void> {
-  await chrome.storage.local.remove(RATES_CACHE_KEY);
+  await safeStorageRemove('local', RATES_CACHE_KEY);
 }
 
 export async function getCryptoCache(): Promise<CryptoCacheEntry | null> {
-  const stored = await chrome.storage.local.get(CRYPTO_CACHE_KEY);
+  const stored = await safeStorageGet('local', CRYPTO_CACHE_KEY);
   return (stored[CRYPTO_CACHE_KEY] as CryptoCacheEntry | undefined) ?? null;
 }
 
 export async function setCryptoCache(entry: CryptoCacheEntry): Promise<void> {
-  await chrome.storage.local.set({ [CRYPTO_CACHE_KEY]: entry });
+  await safeStorageSet('local', { [CRYPTO_CACHE_KEY]: entry });
 }
 
 export async function clearCryptoCache(): Promise<void> {
-  await chrome.storage.local.remove(CRYPTO_CACHE_KEY);
+  await safeStorageRemove('local', CRYPTO_CACHE_KEY);
 }
 
 export async function getHistoryEntries(): Promise<HistoryEntry[]> {
-  const stored = await chrome.storage.local.get(HISTORY_KEY);
+  const stored = await safeStorageGet('local', HISTORY_KEY);
   const entries = Array.isArray(stored[HISTORY_KEY]) ? (stored[HISTORY_KEY] as unknown[]) : [];
   return entries.map(sanitizeHistoryEntry).filter((entry): entry is HistoryEntry => Boolean(entry));
 }
@@ -158,26 +159,26 @@ export async function addHistoryEntry(entry: HistoryEntry, maxItems: number): Pr
   if (history.length > maxItems) {
     history.length = maxItems;
   }
-  await chrome.storage.local.set({ [HISTORY_KEY]: history });
+  await safeStorageSet('local', { [HISTORY_KEY]: history });
 }
 
 export async function clearHistoryEntries(): Promise<void> {
-  await chrome.storage.local.remove(HISTORY_KEY);
+  await safeStorageRemove('local', HISTORY_KEY);
 }
 
 export async function getLastPopupAmount(): Promise<LastPopupAmount | null> {
-  const stored = await chrome.storage.local.get(LAST_POPUP_AMOUNT_KEY);
+  const stored = await safeStorageGet('local', LAST_POPUP_AMOUNT_KEY);
   return sanitizeLastPopupAmount(stored[LAST_POPUP_AMOUNT_KEY]);
 }
 
 export async function setLastPopupAmount(entry: LastPopupAmount): Promise<void> {
   const sanitized = sanitizeLastPopupAmount(entry);
   if (!sanitized) return;
-  await chrome.storage.local.set({ [LAST_POPUP_AMOUNT_KEY]: sanitized });
+  await safeStorageSet('local', { [LAST_POPUP_AMOUNT_KEY]: sanitized });
 }
 
 export async function getHistorySettings(): Promise<HistorySettings> {
-  const stored = await chrome.storage.local.get(HISTORY_SETTINGS_KEY);
+  const stored = await safeStorageGet('local', HISTORY_SETTINGS_KEY);
   const settings = (stored[HISTORY_SETTINGS_KEY] as HistorySettings | undefined) ?? DEFAULT_HISTORY_SETTINGS;
   return sanitizeHistorySettings(settings);
 }
@@ -185,8 +186,33 @@ export async function getHistorySettings(): Promise<HistorySettings> {
 export async function setHistorySettings(patch: Partial<HistorySettings>): Promise<HistorySettings> {
   const current = await getHistorySettings();
   const next = sanitizeHistorySettings({ ...current, ...patch });
-  await chrome.storage.local.set({ [HISTORY_SETTINGS_KEY]: next });
+  await storageSet('local', { [HISTORY_SETTINGS_KEY]: next });
   return next;
+}
+
+async function safeStorageGet(area: 'local' | 'sync', key: string): Promise<Record<string, unknown>> {
+  try {
+    return await storageGet(area, key);
+  } catch (error) {
+    console.warn(`Currency Hover storage.${area}.get failed:`, error);
+    return {};
+  }
+}
+
+async function safeStorageSet(area: 'local' | 'sync', items: Record<string, unknown>): Promise<void> {
+  try {
+    await storageSet(area, items);
+  } catch (error) {
+    console.warn(`Currency Hover storage.${area}.set failed:`, error);
+  }
+}
+
+async function safeStorageRemove(area: 'local' | 'sync', key: string): Promise<void> {
+  try {
+    await storageRemove(area, key);
+  } catch (error) {
+    console.warn(`Currency Hover storage.${area}.remove failed:`, error);
+  }
 }
 
 function sanitizeHistorySettings(settings: HistorySettings): HistorySettings {

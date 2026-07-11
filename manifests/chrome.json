@@ -10,8 +10,7 @@
     "https://api.coingecko.com/*"
   ],
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "action": {
     "default_popup": "src/popup/popup.html",
@@ -27,7 +26,7 @@
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
-      "js": ["content.js"],
+      "js": ["content-boot.js", "content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
     }

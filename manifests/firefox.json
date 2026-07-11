@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "Currency Hover",
+  "version": "1.0.0",
+  "description": "Convert highlighted numbers into multiple currencies.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*",
+    "https://api.frankfurter.dev/*",
+    "https://open.er-api.com/*",
+    "https://api.coingecko.com/*"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Currency Hover",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "src/options/options.html",
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content-boot.js", "content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["flag-icons/flags/*/*.svg", "fonts/jost/*.woff2"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "currency-hover@example.com"
+    }
+  }
+}

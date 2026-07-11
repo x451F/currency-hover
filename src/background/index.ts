@@ -3,28 +3,39 @@ import { isSupportedCurrency, normalizeCurrencyCode, normalizeCurrencyList } fro
 import { getRates } from './fxService';
 import { getCryptoRates, isCryptoCurrency } from './cryptoService';
 import type { ConvertRequest, ConvertResponse, RefreshRatesRequest, RefreshResponse } from './messaging';
+import { addRuntimeInstalledListener, addRuntimeMessageListener } from '../shared/extensionApi';
+import { debugLog, debugWarn } from '../shared/debug';
 
 const MAX_TARGETS = 32;
 const MAX_ABS_AMOUNT = 1_000_000_000_000_000;
 
-chrome.runtime.onInstalled.addListener(() => {
+addRuntimeInstalledListener(() => {
+  debugLog('background', 'installed');
   void ensureSettings();
 });
 
-chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+addRuntimeMessageListener((message: unknown, _sender, sendResponse) => {
+  debugLog('background', 'message received', message);
   const request = parseRequest(message);
   if (!request.ok) {
+    debugWarn('background', 'invalid request', message, request.response);
     sendResponse(request.response);
     return false;
   }
 
   if (request.message.type === 'CONVERT') {
-    void handleConvert(request.message).then(sendResponse);
+    void handleConvert(request.message).then((response) => {
+      debugLog('background', 'convert response', response);
+      sendResponse(response);
+    });
     return true;
   }
 
   if (request.message.type === 'REFRESH_RATES') {
-    void handleRefresh(request.message).then(sendResponse);
+    void handleRefresh(request.message).then((response) => {
+      debugLog('background', 'refresh response', response);
+      sendResponse(response);
+    });
     return true;
   }
 

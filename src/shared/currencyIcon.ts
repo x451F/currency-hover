@@ -1,4 +1,5 @@
 import { getCurrencyFlagCode, getCurrencyMarker } from './currencyMeta';
+import { getExtensionUrl } from './extensionApi';
 
 const FLAG_BASE_PATH = 'flag-icons/flags/4x3';
 
@@ -20,8 +21,5 @@ export function renderCurrencyIcon(target: HTMLElement, code: string): void {
 }
 
 function getAssetUrl(path: string): string {
-  if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
-    return chrome.runtime.getURL(path);
-  }
-  return `/${path}`;
+  return getExtensionUrl(path);
 }

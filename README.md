@@ -1,10 +1,10 @@
 # Currency Hover
 
-Currency Hover is a lightweight Chrome extension that converts currency values directly on the page.
+Currency Hover is a lightweight browser extension that converts currency values directly on the page.
 
 Select a price, amount, or currency-like text and get a small tooltip with converted values — without opening a new tab or using a separate converter.
 
-Built with TypeScript, Vite, and Chrome Extension Manifest V3.
+Built with TypeScript, Vite, and WebExtension Manifest V3.
 
 ---
 
@@ -32,7 +32,7 @@ I built Currency Hover to make quick currency conversion less annoying while rea
 
 The idea is simple: instead of copying a price, opening a converter, pasting the value, and choosing currencies manually, the extension shows a small conversion tooltip directly on the current page.
 
-The project is also a practical browser-extension exercise: content scripts, background service workers, Chrome storage, runtime messaging, local caching, and tested parsing logic.
+The project is also a practical browser-extension exercise: content scripts, background workers, extension storage, runtime messaging, local caching, and tested parsing logic.
 
 ---
 
@@ -55,9 +55,9 @@ The project is also a practical browser-extension exercise: content scripts, bac
 
 - TypeScript
 - Vite
-- Chrome Extension Manifest V3
-- Chrome Storage API
-- Chrome Runtime Messaging
+- WebExtension Manifest V3
+- Extension Storage API
+- Extension Runtime Messaging
 - Vitest
 - ESLint
 - Prettier
@@ -70,7 +70,7 @@ User selects text on a webpage
         ↓
 Content script reads and parses the selection
         ↓
-A conversion request is sent to the background service worker
+A conversion request is sent to the background script
         ↓
 The background script loads cached or fresh exchange rates
         ↓
@@ -83,14 +83,22 @@ A tooltip is rendered near the selected text
 ## Project Structure
 
 src/
-  background/   Service worker, exchange-rate loading, caching, message handling
+  background/   Background script, exchange-rate loading, caching, message handling
   content/      Text selection handling and tooltip rendering
   popup/        Popup UI and user settings
   options/      Options page
   shared/       Shared types, parsing, formatting, and storage helpers
 
+manifests/
+  chrome.json   Chrome/Chromium MV3 manifest
+  firefox.json  Firefox/Zen MV3 manifest
+
 public/
-  icons/        Extension icons
+  icons/        Extension icons and static assets
+
+dist/
+  chrome/       Chrome/Chromium build output
+  firefox/      Firefox/Zen build output
 
 docs/
   demo.mp4      Short extension demo
@@ -106,17 +114,29 @@ docs/
 
 - Node.js 20+
 - pnpm
-- Chromium-based browser
+- Chrome, Firefox, Zen Browser, or another compatible browser
 
 ### Install dependencies
 
 pnpm install
 
-### Build the extension
+### Build for Chrome / Chromium
 
-pnpm build
+pnpm build:chrome
 
-The production build will be generated in the dist/ directory.
+The Chrome build is generated in `dist/chrome/`.
+
+### Build for Firefox / Zen Browser
+
+pnpm build:firefox
+
+The Firefox build is generated in `dist/firefox/`. Zen Browser is Firefox-based, so use this build for Zen.
+
+### Build all supported targets
+
+pnpm build:all
+
+`pnpm build` is kept as a Chrome build alias.
 
 ---
 
@@ -125,9 +145,23 @@ The production build will be generated in the dist/ directory.
 1. Open chrome://extensions
 2. Enable Developer mode
 3. Click Load unpacked
-4. Select the dist folder
+4. Select the `dist/chrome` folder
 5. Open any webpage
 6. Select a price or currency amount and test the tooltip
+
+The Chrome build should also load in Microsoft Edge from `edge://extensions` because Edge is Chromium-based.
+
+---
+
+## Load in Firefox or Zen Browser
+
+1. Build with `pnpm build:firefox`
+2. Open `about:debugging`
+3. Click This Firefox
+4. Click Load Temporary Add-on
+5. Select `dist/firefox/manifest.json`
+6. Open any normal `http://` or `https://` webpage
+7. Select a price or currency amount and test the tooltip
 
 ---
 
@@ -147,6 +181,19 @@ pnpm lint
 
 ---
 
+## Testing Checklist
+
+- Extension loads in Chrome from `dist/chrome` without manifest or console errors
+- Extension loads in Firefox or Zen from `dist/firefox/manifest.json`
+- Content script runs on normal `http://` and `https://` websites
+- Tooltip conversion flow works after selecting currency-like text
+- Popup and options pages open and retain settings
+- Storage changes persist across extension contexts
+- Messaging between content, background, and popup works
+- Required permissions remain limited to `storage` and the exchange-rate API hosts
+
+---
+
 ## Engineering Notes
 
 This project is intentionally small, but it touches several real browser-extension concerns:
@@ -154,9 +201,9 @@ This project is intentionally small, but it touches several real browser-extensi
 - reading selected text from arbitrary webpages;
 - rendering UI from a content script without breaking the page;
 - keeping extension logic split between content, background, popup, and shared modules;
-- communicating between extension contexts through Chrome runtime messaging;
+- communicating between extension contexts through runtime messaging;
 - caching external exchange-rate data locally;
-- storing user preferences with Chrome Storage;
+- storing user preferences with extension storage;
 - testing parsing and formatting logic separately from UI code.
 
 The main focus was to keep the extension simple, usable, and structured enough to grow without turning into one large content script.
@@ -175,7 +222,7 @@ Planned improvements:
 - polish the popup UI;
 - add a better onboarding screen after installation;
 - add optional conversion history;
-- prepare packaging for Chrome Web Store submission.
+- prepare packaging for browser extension store submission.
 
 ---
 

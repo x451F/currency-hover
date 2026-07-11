@@ -8,10 +8,14 @@ import { getSelectionInfo } from './selection';
 import type { ConvertResponse } from '../background/messaging';
 import { normalizeCurrencyList, type FavoritesGroups } from '../shared/settings';
 import { HISTORY_SETTINGS_KEY } from '../shared/constants';
+import { addStorageChangedListener } from '../shared/extensionApi';
+import { debugLog, debugWarn } from '../shared/debug';
 
 async function init(): Promise<void> {
+  debugLog('content', 'init start', { url: window.location.href });
   const tooltip = new TooltipController();
   let currentSettings = await getSettings();
+  debugLog('content', 'settings loaded', currentSettings);
   let requestSeq = 0;
   let lastSelection: { amount: number; rect: DOMRect } | null = null;
   let overrideBase: string | null = null;
@@ -24,6 +28,7 @@ async function init(): Promise<void> {
   let currentAmount = 0;
   let editStartAmount: number | null = null;
   let historySettings = await getHistorySettings();
+  debugLog('content', 'history settings loaded', historySettings);
   let shouldLogHistory = false;
   let suppressSelection = false;
 
@@ -39,15 +44,30 @@ async function init(): Promise<void> {
   });
 
   const handleSelection = async (): Promise<void> => {
-    if (!currentSettings.enabled) return;
+    debugLog('selection', 'selection event');
+    if (!currentSettings.enabled) {
+      debugLog('selection', 'ignored: extension disabled');
+      return;
+    }
 
     const selectionInfo = getSelectionInfo();
-    if (!selectionInfo) return;
+    if (!selectionInfo) {
+      debugLog('selection', 'ignored: no selection info');
+      return;
+    }
+    debugLog('selection', 'text', selectionInfo.text);
 
-    if (!shouldTriggerSelection(selectionInfo.text)) return;
+    if (!shouldTriggerSelection(selectionInfo.text)) {
+      debugLog('selection', 'ignored: trigger rules did not match');
+      return;
+    }
 
     const parsed = extractFirstNumber(selectionInfo.text);
-    if (!parsed) return;
+    if (!parsed) {
+      debugLog('selection', 'ignored: no parsed number');
+      return;
+    }
+    debugLog('selection', 'parsed', parsed);
 
     tooltip.resetEditing();
     lastSelection = { amount: parsed.value, rect: selectionInfo.rect };
@@ -61,6 +81,7 @@ async function init(): Promise<void> {
     activeBase = detectedBase ?? currentSettings.baseCurrency;
     activeTargets = getTargets(activeBase, activeFavorites);
     shouldLogHistory = true;
+    debugLog('selection', 'convert requested', { amount: currentAmount, activeBase, activeTargets });
 
     await convertAndRender();
     scheduleRefresh();
@@ -71,7 +92,10 @@ async function init(): Promise<void> {
     options: { allowEditing?: boolean; showLoading?: boolean } = {}
   ): Promise<void> => {
     if (!lastSelection) return;
-    if (tooltip.isEditing() && !options.allowEditing) return;
+    if (tooltip.isEditing() && !options.allowEditing) {
+      debugLog('convert', 'skipped: tooltip is editing');
+      return;
+    }
     const base = overrideBase ?? activeBase;
     const targets = activeTargets.length > 0 ? [...activeTargets] : [];
     const formatSettings = currentSettings.format;
@@ -164,7 +188,13 @@ async function init(): Promise<void> {
 
     let response: ConvertResponse;
     try {
-      response = await sendMessage<ConvertResponse>({
+      debugLog('convert', 'send message', {
+        amount: currentAmount,
+        base,
+        targets: requestTargets,
+        forceRefresh
+      });
+      const maybeResponse = await sendMessage<unknown>({
         type: 'CONVERT',
         payload: {
           amount: currentAmount,
@@ -173,8 +203,15 @@ async function init(): Promise<void> {
           forceRefresh
         }
       });
+      if (!isConvertResponse(maybeResponse)) {
+        debugWarn('convert', 'invalid response', maybeResponse);
+        throw new Error('Invalid background response.');
+      }
+      response = maybeResponse;
+      debugLog('convert', 'response', response);
     } catch (error) {
       if (requestId !== requestSeq) return;
+      debugWarn('convert', 'failed', error);
       const message = error instanceof Error ? error.message : 'Unable to reach background.';
       tooltip.show(
         lastSelection.rect,
@@ -263,7 +300,7 @@ async function init(): Promise<void> {
     }
   });
 
-  chrome.storage.onChanged.addListener((changes, area) => {
+  addStorageChangedListener((changes, area) => {
     if (area !== 'local' || !changes[HISTORY_SETTINGS_KEY]) return;
     const next = changes[HISTORY_SETTINGS_KEY].newValue as typeof historySettings | undefined;
     if (next) {
@@ -459,7 +496,7 @@ async function init(): Promise<void> {
     return normalizeCurrencyList(next);
   }
 
-  function updateGroupsFromFavorites(groups: FavoritesGroups, favorites: string[]): FavoritesGroups {
+function updateGroupsFromFavorites(groups: FavoritesGroups, favorites: string[]): FavoritesGroups {
     const nextGroups = groups?.groups?.length ? [...groups.groups] : [];
     if (!nextGroups.length) {
       return {
@@ -486,6 +523,12 @@ async function init(): Promise<void> {
     };
   }
 
+}
+
+function isConvertResponse(value: unknown): value is ConvertResponse {
+  if (!value || typeof value !== 'object') return false;
+  const response = value as Partial<ConvertResponse>;
+  return typeof response.base === 'string' && Boolean(response.conversions) && typeof response.conversions === 'object';
 }
 
 init().catch((error) => {

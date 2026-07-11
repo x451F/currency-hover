@@ -22,6 +22,7 @@ import {
 import { isSupportedCurrency, normalizeCurrencyList, type FavoritesGroups, type Settings } from '../shared/settings';
 import { applyTheme, type ThemeSetting } from '../shared/theme';
 import type { ConvertResponse, RefreshResponse } from '../background/messaging';
+import { addStorageChangedListener } from '../shared/extensionApi';
 
 const TRASH_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M6 6l1 14h10l1-14"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>';
@@ -235,7 +236,7 @@ async function init(): Promise<void> {
     void renderHistory();
   });
 
-  chrome.storage.onChanged.addListener((changes, area) => {
+  addStorageChangedListener((changes, area) => {
     if (area !== 'local') return;
     if (changes[HISTORY_SETTINGS_KEY]) {
       historySettings = changes[HISTORY_SETTINGS_KEY].newValue ?? historySettings;

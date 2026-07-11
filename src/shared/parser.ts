@@ -80,9 +80,25 @@ export function detectCurrencyFromText(text: string): string | null {
 }
 
 function containsToken(text: string, token: string): boolean {
-  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(`(?:^|[^\\p{L}])${escaped}(?:$|[^\\p{L}])`, 'iu');
-  return regex.test(text);
+  const lowerText = text.toLocaleLowerCase();
+  const lowerToken = token.toLocaleLowerCase();
+  let index = lowerText.indexOf(lowerToken);
+
+  while (index >= 0) {
+    const before = index > 0 ? lowerText[index - 1] : '';
+    const afterIndex = index + lowerToken.length;
+    const after = afterIndex < lowerText.length ? lowerText[afterIndex] : '';
+    if (!isLetter(before) && !isLetter(after)) {
+      return true;
+    }
+    index = lowerText.indexOf(lowerToken, index + lowerToken.length);
+  }
+
+  return false;
+}
+
+function isLetter(value: string): boolean {
+  return value.length > 0 && value.toLocaleLowerCase() !== value.toLocaleUpperCase();
 }
 
 export function extractFirstNumber(text: string): ParsedNumber | null {
